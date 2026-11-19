@@ -558,7 +558,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 <script type="text/plain" id="lockedScript"></script>
 <script>
 (async () => {
-const APP_VERSION = '2.25.1';
+const APP_VERSION = '2.25.2';
 const FILL_LATEST = '4.5.0'; // the Fill AGL / Fill EAM script this app expects
 const $ = id => document.getElementById(id);
 const store = {
@@ -782,7 +782,12 @@ function scanMsg(text, linkText, onLink){
 let scanTarget = 'asset';
 const scanNames = {asset:'Asset ID', room:'Room Number'};
 function gotCode(text){
-  $(scanTarget).value = text.trim();
+  text = text.trim();
+  // Labels at your site: rooms are B-L…, assets MES-… — put a code in the right box whichever Scan was pressed
+  const looksRoom = /^[A-Z]-L\d{3,}$/i.test(text), looksAsset = /^MES-\d+$/i.test(text);
+  if(scanTarget==='asset' && looksRoom){ scanTarget = 'room'; toast('That was a room label: put in Room Number'); }
+  else if(scanTarget==='room' && looksAsset){ scanTarget = 'asset'; toast('That was an asset label: put in Asset ID'); }
+  $(scanTarget).value = text;
   if(scanTarget==='asset') setEndNow(); else saveDraft();
   if(navigator.vibrate) navigator.vibrate(80);
   toast(scanNames[scanTarget]+': '+text.trim()); scanMsg('');
