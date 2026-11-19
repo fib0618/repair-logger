@@ -554,7 +554,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 <script type="text/plain" id="lockedScript"></script>
 <script>
 (async () => {
-const APP_VERSION = '2.22.3';
+const APP_VERSION = '2.22.4';
 const FILL_LATEST = '4.2.0'; // the Fill AGL / Fill EAM script this app expects
 const $ = id => document.getElementById(id);
 const store = {
@@ -1525,7 +1525,7 @@ function editJob(j){
       tags:[...new Set((res.match(/#[\w-]+/g)||[]).map(t=>t.toUpperCase()))],
       start:st.replace('T',' '), end:en.replace('T',' '),
       durationMin:(st && en) ? Math.round((new Date(en)-new Date(st))/60000) : '',
-      aglWo:wo, aglAt: wo ? (j.aglAt || now) : null, agilityAt: q('aglSent').checked ? (j.agilityAt || now) : null, eam:q('eamFlag').checked, eamWo:q('eamWo').value.trim(), eamAt: (q('eam').checked || q('eamWo').value.trim()) ? (j.eamAt || now) : null};
+      aglWo:wo, aglAt: wo ? (j.aglAt || now) : null, agilityAt: q('aglSent').checked ? (j.agilityAt || now) : null, aglResend: (!q('aglSent').checked && j.agilityAt) ? (j.aglResend||0) + 1 : (j.aglResend||0), eam:q('eamFlag').checked, eamWo:q('eamWo').value.trim(), eamAt: (q('eam').checked || q('eamWo').value.trim()) ? (j.eamAt || now) : null};
     bg.querySelector('[data-save]').disabled = true;
     const ok = await updateJob(j, ch); bg.remove(); renderDash(); if(ok) toast('Job updated');
   };
@@ -1639,7 +1639,7 @@ async function autoStart(mode){
   if(mode==='run'){
     const stuck = dashJobs.filter(j => j.status!=='completed' && !j.aglWo && j.agilityAt);
     if(stuck.length && confirm(stuck.map(j => j.asset).join(', ')+(stuck.length>1 ? ' were' : ' was')+' sent to Agility before but '+(stuck.length>1 ? 'have' : 'has')+' no WO#.\n\nSend '+(stuck.length>1 ? 'them' : 'it')+' again now?\n\nOnly press OK if '+(stuck.length>1 ? 'they are' : 'it is')+' NOT already in Agility (otherwise you get a duplicate).')){
-      for(const j of stuck) await updateJob(j, {agilityAt: null});
+      for(const j of stuck) await updateJob(j, {agilityAt: null, aglResend: (j.aglResend||0) + 1});
     }
   }
   const ids = waitingJobs().map(j => j.id);
@@ -1683,7 +1683,7 @@ window.addEventListener('message', async e => {
       if(!ok){ autoCurrent = null; autoStop('couldn’t save that '+j.asset+' was sent, so it wasn’t sent (no duplicates)'); return; }
       autoSent++;
     }
-    e.source.postMessage({rl:'agl-job', text:agilityPayload(autoCurrent), id:autoCurrent.id, asset:autoCurrent.asset, url:settings.agAutoUrl || DEFAULT_SETTINGS.agAutoUrl, add:settings.agAddLabel || DEFAULT_SETTINGS.agAddLabel}, e.origin);
+    e.source.postMessage({rl:'agl-job', text:agilityPayload(autoCurrent), id:autoCurrent.id+(autoCurrent.aglResend ? '~resend'+autoCurrent.aglResend : ''), asset:autoCurrent.asset, url:settings.agAutoUrl || DEFAULT_SETTINGS.agAutoUrl, add:settings.agAddLabel || DEFAULT_SETTINGS.agAddLabel}, e.origin);
     autoStatus('Logging '+autoCurrent.asset+' in Agility…'+(autoMode==='run' ? ' ('+(autoDone+autoStopped+1)+' of '+runIds.length+')' : ''));
   }
   if(d.rl==='agl-wo'){
@@ -2111,7 +2111,7 @@ async function renderDash(){
     if(dashView!=='completed'){
       btns.push(ag);
       if(j.agilityAt && !j.aglWo){ const rs=document.createElement('button'); rs.type='button'; rs.className='btn small'; rs.textContent='↻ Resend'; rs.title='Sent to Agility before but no WO# came back. Lets Auto log / Run AGL send it again.';
-        rs.onclick = async () => { if(!confirm(j.asset+' was sent to Agility before but has no WO#.\n\nLet Auto log / Run AGL send it again?\n\nOnly press OK if it is NOT already in Agility.')) return; await updateJob(j, {agilityAt: null}); renderDash(); toast(j.asset+' will be sent on the next Run AGL / Auto log'); }; btns.push(rs); }
+        rs.onclick = async () => { if(!confirm(j.asset+' was sent to Agility before but has no WO#.\n\nLet Auto log / Run AGL send it again?\n\nOnly press OK if it is NOT already in Agility.')) return; await updateJob(j, {agilityAt: null, aglResend: (j.aglResend||0) + 1}); renderDash(); toast(j.asset+' will be sent on the next Run AGL / Auto log'); }; btns.push(rs); }
       if(j.aglWo && !j.eamAt){ const em=document.createElement('button'); em.type='button'; em.className='btn small eam'; em.textContent = j.snAt ? '✓ EAM' : '→ EAM';
         em.title='Copy this job for ⚡ Fill EAM on a new ServiceNow Work Order'; em.onclick = () => sendToEam(j); btns.push(em); }
     }
