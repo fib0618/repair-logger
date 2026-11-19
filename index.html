@@ -63,7 +63,6 @@ button{font:inherit;cursor:pointer}
 #scanner{display:none;margin-top:10px;border-radius:12px;overflow:hidden;position:relative;height:200px}
 #scanner video{width:100%!important;height:200px!important;object-fit:cover}
 #scanner::after{content:'';position:absolute;left:8%;right:8%;top:50%;height:2px;background:rgba(239,68,68,.85);box-shadow:0 0 0 1px rgba(255,255,255,.4);pointer-events:none}
-#scanner #qr-shaded-region{display:none}
 #scanner.on{display:block}
 #toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 20px);transform:translateX(-50%);
   background:#222;color:#fff;padding:10px 16px;border-radius:10px;font-size:15px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90%;text-align:center;z-index:10}
@@ -559,7 +558,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 <script type="text/plain" id="lockedScript"></script>
 <script>
 (async () => {
-const APP_VERSION = '2.24.0';
+const APP_VERSION = '2.25.1';
 const FILL_LATEST = '4.5.0'; // the Fill AGL / Fill EAM script this app expects
 const $ = id => document.getElementById(id);
 const store = {
@@ -755,17 +754,17 @@ $('addTagBtn').onclick = () => {
 };
 $('newTag').addEventListener('keydown', e=>{ if(e.key==='Enter') $('addTagBtn').click(); });
 
-// ---------- Scanner ----------
-// Load the barcode library on demand, trying a second CDN if the first fails.
+// ---------- Scanner (ZXing: barcodes and QR codes in any orientation) ----------
+// Loads the decoder on demand, trying a second CDN if the first fails.
 let libPromise = null;
 function loadScannerLib(){
-  if(typeof Html5Qrcode!=='undefined') return Promise.resolve();
+  if(window.ZXing && ZXing.MultiFormatReader) return Promise.resolve();
   return libPromise ||= (async () => {
-    for(const src of ['https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js',
-                      'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js']){
+    for(const src of ['https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js',
+                      'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js']){
       try{
         await new Promise((res, rej) => { const sc=document.createElement('script'); sc.src=src; sc.onload=res; sc.onerror=rej; document.head.appendChild(sc); });
-        if(typeof Html5Qrcode!=='undefined') return;
+        if(window.ZXing && ZXing.MultiFormatReader) return;
       }catch{}
     }
     libPromise = null;
@@ -788,32 +787,63 @@ function gotCode(text){
   if(navigator.vibrate) navigator.vibrate(80);
   toast(scanNames[scanTarget]+': '+text.trim()); scanMsg('');
 }
-let scanner = null;
-// zoom slider and torch, when the camera supports them
+// One reader, thorough mode (TRY_HARDER also tries barcodes turned 90°/upside down)
+let zxReader = null;
+function reader(){
+  if(zxReader) return zxReader;
+  const Z = ZXing, F = Z.BarcodeFormat, hints = new Map();
+  hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [F.QR_CODE, F.DATA_MATRIX, F.CODE_128, F.CODE_39, F.CODE_93, F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.ITF, F.CODABAR, F.PDF_417, F.AZTEC].filter(v => v !== undefined));
+  hints.set(Z.DecodeHintType.TRY_HARDER, true);
+  zxReader = new Z.MultiFormatReader(); zxReader.setHints(hints);
+  return zxReader;
+}
+function decodeCanvas(c){
+  try{ return reader().decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(c)))).getText(); }
+  catch(e){ return null; }
+}
+// Draw (part of) a video frame or image onto the canvas, turned by deg, longest side at most max px
+function drawTo(canvas, src, sw, sh, deg, max, crop){
+  const cw0 = crop ? sw*crop : sw, ch0 = crop ? sh*crop : sh, sx = (sw-cw0)/2, sy = (sh-ch0)/2;
+  const s = Math.min(1, max/Math.max(cw0, ch0)), w = Math.round(cw0*s), h = Math.round(ch0*s), r = deg*Math.PI/180;
+  canvas.width = Math.round(Math.abs(w*Math.cos(r)) + Math.abs(h*Math.sin(r)));
+  canvas.height = Math.round(Math.abs(w*Math.sin(r)) + Math.abs(h*Math.cos(r)));
+  const g = canvas.getContext('2d', {willReadFrequently:true});
+  g.fillStyle = '#fff'; g.fillRect(0, 0, canvas.width, canvas.height);
+  g.translate(canvas.width/2, canvas.height/2); g.rotate(r);
+  g.drawImage(src, sx, sy, cw0, ch0, -w/2, -h/2, w, h);
+  g.setTransform(1, 0, 0, 1, 0, 0);
+}
+// Each pass tries a different view: whole frame, close-up of the middle, and tilted ±45° (diagonal codes)
+// Barcodes only read when roughly level, so each frame tries a different turn: every 15° all the way round
+// (a barcode upside down reads the same as level, so 0°…165° covers every angle). QR codes read at any angle.
+const PASSES = [0, 90, 45, -45, 'c0', 30, -30, 60, -60, 'c90', 15, -15, 75, -75].map(d => typeof d==='string' ? {deg:+d.slice(1), max:1100, crop:0.55} : {deg:d, max:1400});
+let stream = null, video = null, track = null, loopTimer = null, frameN = 0;
 function setupScanTools(){
   $('scanTools').classList.remove('hidden');
-  let caps = {};
-  try{ caps = scanner.getRunningTrackCapabilities ? scanner.getRunningTrackCapabilities() : {}; }catch{}
+  let caps = {}; try{ caps = track && track.getCapabilities ? track.getCapabilities() : {}; }catch{}
   const z = caps.zoom;
   if(z && z.max > z.min){
     const r = $('zoomRange'); r.min = z.min; r.max = Math.min(z.max, 8); r.step = z.step || 0.1; r.value = Math.min(Math.max(z.min, 1.5), r.max);
     r.classList.remove('hidden'); $('zoomLabel').classList.remove('hidden');
-    const apply = () => scanner.applyVideoConstraints({advanced:[{zoom: parseFloat(r.value)}]}).catch(()=>{});
+    const apply = () => track.applyConstraints({advanced:[{zoom: parseFloat(r.value)}]}).catch(()=>{});
     r.oninput = apply; apply();
   }
   if(caps.torch){
     let on = false; const t = $('torchBtn'); t.classList.remove('hidden');
-    t.onclick = () => { on = !on; scanner.applyVideoConstraints({advanced:[{torch:on}]}).catch(()=>{}); t.textContent = on ? '🔦 Torch off' : '🔦 Torch'; };
+    t.onclick = () => { on = !on; track.applyConstraints({advanced:[{torch:on}]}).catch(()=>{}); t.textContent = on ? '🔦 Torch off' : '🔦 Torch'; };
   }
 }
 $('photoScanBtn').onclick = () => { stopScan(); photoScan(); };
+let scanning = false;
 async function stopScan(){
-  if(scanner){ try{ await scanner.stop(); scanner.clear(); }catch{} scanner=null; }
+  scanning = false; clearTimeout(loopTimer); loopTimer = null;
+  if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
+  track = null; video = null; $('scanner').innerHTML = '';
   $('scanner').classList.remove('on'); $('scanLabel').textContent='';
   ['scanTools','zoomRange','zoomLabel','torchBtn'].forEach(id => $(id).classList.add('hidden'));
   document.querySelectorAll('.scan-btn').forEach(b => b.textContent='📷 Scan');
 }
-// Fallback: take a still photo of the barcode and decode it (works without live camera access)
+// Fallback / small or shiny labels: a still photo from the iPhone camera, tried at several angles
 function photoScan(){ $('scanPhoto').click(); }
 $('scanPhoto').addEventListener('change', async e => {
   const f = e.target.files[0]; e.target.value='';
@@ -821,18 +851,23 @@ $('scanPhoto').addEventListener('change', async e => {
   try{
     await loadScannerLib();
     toast('Reading barcode…');
-    const r = new Html5Qrcode('scanReader');
-    const text = await r.scanFile(f, false);
-    r.clear(); gotCode(text);
-  }catch(err){
-    scanMsg(typeof err==='string' || /No MultiFormat|not found|No barcode/i.test(err?.message||'')
-      ? 'No barcode found in that photo. Get closer, keep it sharp and well lit.' : (err?.message||String(err)),
-      'Try again', photoScan);
-  }
+    const url = URL.createObjectURL(f);
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+    const c = document.createElement('canvas');
+    let text = null;
+    for(const p of [0,90,45,-45,30,-30,60,-60,15,-15,75,-75].map(d => ({deg:d, max:1400})).concat([{deg:0,max:1400,crop:0.6},{deg:90,max:1400,crop:0.6},{deg:0,max:2400},{deg:0,max:1200,crop:0.4}])){
+      drawTo(c, img, img.naturalWidth, img.naturalHeight, p.deg, p.max, p.crop);
+      if((text = decodeCanvas(c))) break;
+      await new Promise(r => setTimeout(r, 0));
+    }
+    URL.revokeObjectURL(url);
+    if(text) gotCode(text);
+    else scanMsg('No barcode found in that photo. Get a bit closer, keep it sharp and well lit.', 'Try again', photoScan);
+  }catch(err){ scanMsg(err?.message||String(err), 'Try again', photoScan); }
 });
 async function startScan(target){
   const wasTarget = scanTarget;
-  if(scanner){ await stopScan(); if(wasTarget===target) return; }
+  if(scanning){ await stopScan(); if(wasTarget===target) return; }
   scanTarget = target;
   scanMsg('');
   // Live camera needs an https address; opened as a file or inside another app it is blocked.
@@ -841,19 +876,33 @@ async function startScan(target){
     return photoScan();
   }
   try{ await loadScannerLib(); }catch(e){ return scanMsg(e.message, 'Retry', ()=>startScan(target)); }
-  $('scanner').classList.add('on'); $('scanLabel').textContent='Scanning '+scanNames[target]+'…';
+  $('scanner').classList.add('on'); $('scanLabel').textContent='Scanning '+scanNames[target]+'… (any angle)';
   document.querySelector('.scan-btn[data-target="'+target+'"]').textContent='✕ Stop';
+  scanning = true;
   try{
-    // sharper picture + continuous focus, larger target box, faster checking, only the barcode types we use
-    const F = window.Html5QrcodeSupportedFormats || {};
-    const formats = ['QR_CODE','CODE_128','CODE_39','CODE_93','EAN_13','EAN_8','UPC_A','DATA_MATRIX','ITF','CODABAR'].map(k => F[k]).filter(v => v !== undefined);
-    const cfg = {fps:15, disableFlip:true,
-      videoConstraints:{facingMode:'environment', width:{ideal:1920}, height:{ideal:1080}, advanced:[{focusMode:'continuous'}]},
-      experimentalFeatures:{useBarCodeDetectorIfSupported:true}};
-    if(formats.length) cfg.formatsToSupport = formats;
-    try{ scanner = new Html5Qrcode('scanner', formats.length ? {formatsToSupport:formats, verbose:false} : undefined); }catch{ scanner = new Html5Qrcode('scanner'); }
-    await scanner.start({facingMode:'environment'}, cfg, text => { gotCode(text); stopScan(); }, () => {});
+    stream = await navigator.mediaDevices.getUserMedia({audio:false, video:{facingMode:{ideal:'environment'}, width:{ideal:1920}, height:{ideal:1080}}});
+    if(!scanning){ stream.getTracks().forEach(t => t.stop()); stream = null; return; }
+    track = stream.getVideoTracks()[0];
+    try{ await track.applyConstraints({advanced:[{focusMode:'continuous'}]}); }catch{}
+    video = document.createElement('video');
+    video.setAttribute('playsinline', ''); video.setAttribute('muted', ''); video.muted = true; video.autoplay = true;
+    video.srcObject = stream;
+    $('scanner').innerHTML = ''; $('scanner').appendChild(video);
+    await video.play().catch(()=>{});
     setupScanTools();
+    const canvas = document.createElement('canvas');
+    frameN = 0;
+    const tick = () => {
+      if(!scanning || !video) return;
+      if(video.readyState >= 2 && video.videoWidth){
+        const p = PASSES[frameN++ % PASSES.length];
+        drawTo(canvas, video, video.videoWidth, video.videoHeight, p.deg, p.max, p.crop);
+        const text = decodeCanvas(canvas);
+        if(text){ gotCode(text); stopScan(); return; }
+      }
+      loopTimer = setTimeout(tick, 40);
+    };
+    tick();
   }catch(e){
     await stopScan();
     const msg = String(e?.message||e);
@@ -2104,6 +2153,13 @@ async function checkCore(){
   try{ const {ver} = await loadScript(); extStatus('🔒 Tampermonkey script '+ver+' is in your private repository.', 'ok'); }
   catch(e){ extStatus(e.message, 'warn'); }
 }
+// Link that opens a ServiceNow Work Order by its number (works for any Work Order, old or new)
+function eamLink(wo){
+  let origin = 'https://healthineers.service-now.com';
+  try{ if(settings.snNewUrl) origin = new URL(settings.snNewUrl).origin; }catch{}
+  const table = (settings.snTable || 'x_nuvo_eam_clinical_work_orders').trim();
+  return origin+'/'+table+'.do?sysparm_query='+encodeURIComponent('number='+wo);
+}
 const dcell = v => { const t = fmt(v); return cell(t, false, t.replace(/^(\S+) /, '$1\n')); };
 async function renderDash(){
   try{ renderAutoBtns(); }catch{}
@@ -2125,7 +2181,9 @@ async function renderDash(){
     if(j.aglWo) woTd.insertAdjacentHTML('beforeend','<span class="stage agl" title="AGL done '+fmt(j.aglAt||'')+'">AGL ✓</span>');
     if(j.eamAt) woTd.insertAdjacentHTML('beforeend','<span class="stage eam" title="EAM done '+fmt(j.eamAt)+'">EAM ✓</span>');
     if(j.eam && !j.eamAt) woTd.insertAdjacentHTML('beforeend','<span class="stage" style="background:#a78bfa" title="Will be logged in EAM">EAM</span>');
-    if(j.eamWo){ const d=document.createElement('div'); d.style.cssText='font-size:12px;margin-top:3px'; d.textContent=j.eamWo; woTd.appendChild(d); }
+    if(j.eamWo){ const d=document.createElement('div'); d.style.cssText='font-size:12px;margin-top:3px';
+      const a=document.createElement('a'); a.href=eamLink(j.eamWo); a.target='_blank'; a.rel='noopener'; a.textContent=j.eamWo+' ↗'; a.title='Open this Work Order in ServiceNow';
+      d.appendChild(a); woTd.appendChild(d); }
     tr.append(woTd);
     const tdDone = dcell(j.completedAt); if(dashView!=='completed') tdDone.classList.add('hidden'); tr.append(tdDone);
     const act=document.createElement('td'); act.className='act'; const actb=document.createElement('div'); actb.className='actbtns'; act.appendChild(actb);
