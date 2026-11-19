@@ -403,7 +403,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 
 <script>
 (async () => {
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.7.1';
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -1296,6 +1296,9 @@ function agilityFiller(){
   const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const norm = s => (s||'').replace(/[\s ]+/g,' ').replace(/[:*]+\s*$/,'').trim().toLowerCase();
   const compact = s => norm(s).replace(/[^a-z0-9]/g,'');
+  const data_v = 'APPVER';
+  const LOG = [];
+  const log = m => LOG.push(new Date().toTimeString().slice(0,8)+'  '+m);
   const docs = [];
   (function walk(w){ try{ if(w.document.body) docs.push(w.document); for(let i=0;i<w.frames.length;i++) walk(w.frames[i]); }catch(e){} })(window);
   const visible = el => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
@@ -1352,11 +1355,12 @@ function agilityFiller(){
     const lines = [];
     docs.forEach((doc,i) => [...doc.querySelectorAll('input,textarea')].filter(editable).forEach(el =>
       lines.push([labelFor(el)||'(no label)', el.tagName.toLowerCase()+(el.type?':'+el.type:''), 'id='+el.id, 'name='+el.name, i?'frame '+i:''].join(' | '))));
-    body.innerHTML = '<div>Fields found on this page (copy and send this to fix the matching):</div><textarea data-d style="width:100%;height:200px;margin-top:6px;font:11px monospace">'+esc(location.pathname+'\n'+lines.join('\n'))+'</textarea><button data-c '+btn+'>Copy</button>';
-    body.querySelector('[data-c]').onclick = () => { const t = body.querySelector('[data-d]'); t.select(); document.execCommand('copy'); };
+    const text = 'Fill AGL log (Repair Logger '+data_v+')\n'+navigator.userAgent+'\n\n--- Steps ---\n'+LOG.join('\n')+'\n\n--- Text boxes on this page (label | type | id | name) ---\n'+lines.join('\n');
+    body.innerHTML = '<div>Log of what happened. Press <b>Copy log</b> and paste it to Claude.</div><textarea data-d style="width:100%;height:220px;margin-top:6px;font:11px monospace">'+esc(text)+'</textarea><button data-c '+btn+'>Copy log</button>';
+    body.querySelector('[data-c]').onclick = async () => { const t = body.querySelector('[data-d]'); t.select(); let ok = false; try{ await navigator.clipboard.writeText(t.value); ok = true; }catch(e){ ok = document.execCommand('copy'); } body.querySelector('[data-c]').textContent = ok ? '✓ Copied' : 'Select all and copy'; };
   }
   function askPaste(msg){
-    body.innerHTML = '<div style="color:#b45309">'+esc(msg)+'</div><textarea data-p style="width:100%;height:70px;margin-top:6px" placeholder="Paste here (Ctrl+V)"></textarea><button data-go '+btn+'>Fill</button><button data-dbg '+btn+'>Show page fields</button>';
+    body.innerHTML = '<div style="color:#b45309">'+esc(msg)+'</div><textarea data-p style="width:100%;height:70px;margin-top:6px" placeholder="Paste here (Ctrl+V)"></textarea><button data-go '+btn+'>Fill</button><button data-dbg '+btn+'>📋 Log</button>';
     body.querySelector('[data-go]').onclick = () => run(body.querySelector('[data-p]').value.trim());
     body.querySelector('[data-dbg]').onclick = debug;
     body.querySelector('[data-p]').focus();
@@ -1379,13 +1383,16 @@ function agilityFiller(){
     return null;
   }
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const desc = el => el ? el.tagName.toLowerCase()+(el.type?':'+el.type:'')+' id='+(el.id||'-')+' name='+(el.name||'-')+(el.disabled?' DISABLED':'')+(el.readOnly?' READONLY':'') : 'none';
   async function run(t){
     if(!t.startsWith('REPAIRLOGGER:')) return askPaste('That isn’t a Repair Logger job. In Repair Logger press “→ AGL” on a job, then paste it here.');
     let data; try{ data = JSON.parse(t.slice(13)); }catch(e){ return askPaste('Could not read that job. Copy it again from Repair Logger.'); }
+    log('Job '+data.asset+', '+data.fields.length+' field(s) to fill');
     const rows = [];
     // Tick "Decouple Asset?" first so the Equipment box can be typed in
     if(data.decouple){
       const box = findCheckbox(data.decouple);
+      log('Decouple checkbox "'+data.decouple+'": '+(box ? desc(box)+' checked='+box.checked : 'not found'));
       if(!box) rows.push(['#555','– '+data.decouple+' not on this page']);
       else if(box.checked) rows.push(['#15803d','✓ '+data.decouple+' (already ticked)']);
       else {
@@ -1394,28 +1401,31 @@ function agilityFiller(){
         rows.push(['#15803d','✓ '+data.decouple+' ticked']);
         // wait for the page to unlock the asset field (up to 4 seconds)
         const firstAsset = data.fields.find(f => f.asset);
-        for(let i=0; i<20 && firstAsset && !find(firstAsset.label); i++) await sleep(200);
+        let i=0; for(; i<20 && firstAsset && !find(firstAsset.label); i++) await sleep(200);
+        log('Waited '+(i*200)+' ms for "'+(firstAsset?firstAsset.label:'')+'" to unlock: '+(firstAsset && find(firstAsset.label) ? 'unlocked' : 'still locked'));
         await sleep(300);
         if(!document.getElementById(ID)) return; // page reloaded
       }
     }
     for(const f of data.fields){
       const el = find(f.label);
-      if(!el){ rows.push(['#b91c1c','✕ '+f.label+': not on this page']); continue; }
-      try{ setVal(el, f); rows.push(['#15803d','✓ '+f.label]); }catch(e){ rows.push(['#b45309','⚠ '+f.label+': '+e.message]); }
+      if(!el){ rows.push(['#b91c1c','✕ '+f.label+': not on this page']); log('Field "'+f.label+'": not found'); continue; }
+      try{ setVal(el, f); rows.push(['#15803d','✓ '+f.label]); log('Field "'+f.label+'" -> '+desc(el)+' value now '+JSON.stringify(el.value).slice(0,60)); }
+      catch(e){ rows.push(['#b45309','⚠ '+f.label+': '+e.message]); log('Field "'+f.label+'" -> '+desc(el)+' ERROR '+e.message); }
     }
     body.innerHTML = '<div>Job <b>'+esc(data.asset)+'</b></div><div style="margin:6px 0">'+rows.map(r=>'<div style="color:'+r[0]+'">'+esc(r[1])+'</div>').join('')+
-      '</div><div style="color:#555">Filled fields are outlined in green. Check them, then press <b>Complete</b> yourself.<br>If the page reloaded after ticking Decouple Asset, or some fields only appear later, click <b>⚡ Fill AGL</b> again.</div><button data-dbg '+btn+'>Show page fields</button>';
+      '</div><div style="color:#555">Filled fields are outlined in green. Check them, then press <b>Complete</b> yourself.<br>If the page reloaded after ticking Decouple Asset, or some fields only appear later, click <b>⚡ Fill AGL</b> again.</div><button data-dbg '+btn+'>📋 Log</button>';
     body.querySelector('[data-dbg]').onclick = debug;
   }
   (async () => {
     let t = '';
-    try{ t = (await navigator.clipboard.readText()).trim(); }catch(e){}
+    log('Started on '+location.pathname+' | frames: '+docs.length+' | $find: '+(typeof window.$find));
+    try{ t = (await navigator.clipboard.readText()).trim(); log('Clipboard read: '+(t.startsWith('REPAIRLOGGER:') ? 'job found' : 'no job ('+t.length+' chars)')); }catch(e){ log('Clipboard read failed: '+e.name+' '+e.message); }
     if(t.startsWith('REPAIRLOGGER:')) run(t);
     else askPaste('Couldn’t read a job from the clipboard. In Repair Logger press “→ AGL” on a job, then paste it here (Ctrl+V).');
   })();
 }
-const bookmarkletCode = () => 'javascript:'+encodeURIComponent('('+agilityFiller.toString()+')()');
+const bookmarkletCode = () => 'javascript:'+encodeURIComponent('('+agilityFiller.toString().replace('APPVER', APP_VERSION)+')()');
 async function renderDash(){
   const q = $('dashSearch').value.trim().toLowerCase();
   const open = dashJobs.filter(j=>j.status!=='completed'), done = dashJobs.filter(j=>j.status==='completed');
