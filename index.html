@@ -554,7 +554,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 <script type="text/plain" id="lockedScript"></script>
 <script>
 (async () => {
-const APP_VERSION = '2.22.2';
+const APP_VERSION = '2.22.3';
 const FILL_LATEST = '4.2.0'; // the Fill AGL / Fill EAM script this app expects
 const $ = id => document.getElementById(id);
 const store = {
@@ -1636,6 +1636,12 @@ function autoStop(reason){
 }
 async function autoStart(mode){
   if(!dashJobs.length) await loadDashboard();
+  if(mode==='run'){
+    const stuck = dashJobs.filter(j => j.status!=='completed' && !j.aglWo && j.agilityAt);
+    if(stuck.length && confirm(stuck.map(j => j.asset).join(', ')+(stuck.length>1 ? ' were' : ' was')+' sent to Agility before but '+(stuck.length>1 ? 'have' : 'has')+' no WO#.\n\nSend '+(stuck.length>1 ? 'them' : 'it')+' again now?\n\nOnly press OK if '+(stuck.length>1 ? 'they are' : 'it is')+' NOT already in Agility (otherwise you get a duplicate).')){
+      for(const j of stuck) await updateJob(j, {agilityAt: null});
+    }
+  }
   const ids = waitingJobs().map(j => j.id);
   if(mode==='run' && !ids.length){ renderAutoBtns(); autoStatus('No jobs are waiting for Agility.'+skippedNote()); return; } // nothing to do: don't open Agility
   if(!openAgl()) return;
@@ -2104,6 +2110,8 @@ async function renderDash(){
     const btns = [b];
     if(dashView!=='completed'){
       btns.push(ag);
+      if(j.agilityAt && !j.aglWo){ const rs=document.createElement('button'); rs.type='button'; rs.className='btn small'; rs.textContent='↻ Resend'; rs.title='Sent to Agility before but no WO# came back. Lets Auto log / Run AGL send it again.';
+        rs.onclick = async () => { if(!confirm(j.asset+' was sent to Agility before but has no WO#.\n\nLet Auto log / Run AGL send it again?\n\nOnly press OK if it is NOT already in Agility.')) return; await updateJob(j, {agilityAt: null}); renderDash(); toast(j.asset+' will be sent on the next Run AGL / Auto log'); }; btns.push(rs); }
       if(j.aglWo && !j.eamAt){ const em=document.createElement('button'); em.type='button'; em.className='btn small eam'; em.textContent = j.snAt ? '✓ EAM' : '→ EAM';
         em.title='Copy this job for ⚡ Fill EAM on a new ServiceNow Work Order'; em.onclick = () => sendToEam(j); btns.push(em); }
     }
