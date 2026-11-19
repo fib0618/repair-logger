@@ -139,7 +139,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
       <label for="resolution">Resolution</label>
       <textarea id="resolution" placeholder="What was done"></textarea>
       <div class="chips" id="tagChips"></div>
-      <div class="hint">Tap a tag to add or remove it.</div>
+      <div class="hint">Tap a tag to add or remove it. Tags stay together on the top line; type your notes on the line below.</div>
     </div>
     <div class="field">
       <label for="end">End time</label>
@@ -377,7 +377,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 
 <script>
 (async () => {
-const APP_VERSION = '1.5.0';
+const APP_VERSION = '1.5.1';
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -496,13 +496,26 @@ fields.forEach(f => $(f).addEventListener('input', () => { saveDraft(); if(f==='
 // ---------- Tags ----------
 const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 function resolutionHas(tag){ return new RegExp('(^|\\s)'+reEsc(tag)+'(?=\\s|$)','i').test($('resolution').value); }
+// Tags live together on the first line of Resolution; notes go on the lines below.
+function splitResolution(v){
+  const lines = v.split('\n');
+  if(/^\s*(#[\w-]+\s*)+$/.test(lines[0])) return {tags: lines[0].trim().split(/\s+/), body: lines.slice(1).join('\n')};
+  return {tags: [], body: v};
+}
 function toggleTag(tag){
   const r = $('resolution');
-  if (resolutionHas(tag)){
-    r.value = r.value.replace(new RegExp('(^|\\s)'+reEsc(tag)+'(?=\\s|$)','ig'),'$1').replace(/[ \t]{2,}/g,' ').trim();
+  let {tags, body} = splitResolution(r.value);
+  const same = t => t.toUpperCase()===tag.toUpperCase();
+  if(resolutionHas(tag)){
+    tags = tags.filter(t=>!same(t));
+    body = body.replace(new RegExp('(^|\\s)'+reEsc(tag)+'(?=\\s|$)','ig'),'$1').replace(/[ \t]{2,}/g,' ');
   } else {
-    r.value = (r.value.trim() ? r.value.trimEnd()+' ' : '') + tag;
+    tags.push(tag);
+    const order = t => { const i = settings.tags.findIndex(x=>x.toUpperCase()===t.toUpperCase()); return i<0 ? 999 : i; };
+    tags.sort((a,b)=>order(a)-order(b));
   }
+  body = body.replace(/^\n+/,'');
+  r.value = tags.length ? tags.join(' ')+'\n'+body : body;
   saveDraft(); renderTagChips();
 }
 function renderTagChips(){
