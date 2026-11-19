@@ -383,6 +383,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
       <div class="row">
         <button class="btn primary" id="dlExtBtn" type="button">⬇ Download Edge extension</button>
         <button class="btn" id="upCoreBtn" type="button">⬆ Upload extension code…</button>
+        <button class="btn" id="dlCoreBtn" type="button">⬇ Download extension code (.js)</button>
       </div>
       <input type="file" id="coreFile" accept=".js,text/javascript" class="hidden">
       <div class="status" id="extStatus"></div>
@@ -422,7 +423,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 
 <script>
 (async () => {
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.0.1';
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -1584,6 +1585,15 @@ function bindSettings(){
   bindGitHubSettings();
   $('dlExtBtn').onclick = () => downloadExtension().catch(e => extStatus('Could not build the extension: '+e.message, 'err'));
   $('upCoreBtn').onclick = () => { if(!coreReady()) return; $('coreFile').click(); };
+  $('dlCoreBtn').onclick = async () => {
+    if(!coreReady()) return;
+    extStatus('Fetching extension code from your private repository…');
+    try{
+      const core = await loadCore();
+      download(new File([core.src], 'fill-agl-core.js', {type:'text/javascript'}));
+      extStatus('✓ Downloaded fill-agl-core.js ('+core.ver+'). Keep it private.', 'ok');
+    }catch(e){ extStatus('Could not download: '+e.message, 'err'); }
+  };
   $('coreFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value=''; if(f) uploadCore(f); });
   $('agResetBtn').onclick = () => {
     ['agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom'].forEach(k=>{ settings[k]=DEFAULT_SETTINGS[k]; $(k).value=settings[k]; });
