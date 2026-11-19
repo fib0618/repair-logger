@@ -376,40 +376,31 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 
   <div class="card">
     <h2>Fill AGL</h2>
-    <div class="hint" style="margin:0 0 10px"><b>On a work PC where bookmarks and developer tools are blocked:</b> press <b>→ AGL</b> on a job in the Dashboard. A helper window opens with each value in Agility’s order: click to copy, paste into Agility, repeat. It can also load everything into Windows clipboard history (Win+V). The field names below set the labels shown in the helper.</div>
-    <div class="hint" style="margin:0 0 10px"><b>Where bookmarks are allowed:</b> fill the Agility form from a job. On the PC Dashboard press <b>→ AGL</b> on a job, open the Agility form in the same browser, then click the <b>Fill AGL</b> bookmark. It only fills fields; you check the form and press Complete yourself.</div>
+    <div class="hint" style="margin:0 0 10px">Press <b>→ AGL</b> on a job in the Dashboard. It copies the job and opens a helper window with each value in Agility’s order (click to copy, or load all into Win+V). With the Fill AGL extension installed in Edge, just click <b>⚡ Fill AGL</b> on the Agility form instead.</div>
     <div class="field">
-      <label>Edge extension (recommended for work PCs)</label>
+      <label>Edge extension 🔒</label>
+      <div class="hint" style="margin:0 0 8px">The extension’s code is kept encrypted in your <b>private</b> GitHub repository, not on this public page. Downloading it needs this device’s GitHub token and encryption key (see GitHub account and Encryption key, with Save location set to GitHub).</div>
       <div class="row">
         <button class="btn primary" id="dlExtBtn" type="button">⬇ Download Edge extension</button>
+        <button class="btn" id="upCoreBtn" type="button">⬆ Upload extension code…</button>
       </div>
-      <div class="hint">Adds a <b>⚡ Fill AGL</b> button to Agility pages and works even where bookmarks and F12 are blocked. To install:
+      <input type="file" id="coreFile" accept=".js,text/javascript" class="hidden">
+      <div class="status" id="extStatus"></div>
+      <div class="hint">To install the download:
         <ol style="margin:6px 0 0;padding-left:20px">
-          <li>Unzip the downloaded file to a folder you’ll keep, e.g. <code>Documents\Fill AGL</code>.</li>
+          <li>Unzip it to a folder you’ll keep, e.g. <code>Documents\Fill AGL</code>.</li>
           <li>In Edge go to <code>edge://extensions</code> and turn on <b>Developer mode</b> (bottom-left).</li>
           <li>Click <b>Load unpacked</b> and choose that folder.</li>
           <li>Open an Agility form and look for the blue <b>⚡ Fill AGL</b> button at the bottom-right.</li>
         </ol>
-        To update later, download again, unzip over the same folder and click ↻ on the extension in <code>edge://extensions</code>. If Developer mode is greyed out, your IT department needs to allow it.</div>
+        When you get a new <code>fill-agl-core.js</code>, upload it here, download the extension again, unzip over the same folder and click ↻ on the extension in <code>edge://extensions</code>.</div>
     </div>
     <div class="field">
-      <label>Or: add the bookmark (where bookmarks are allowed)</label>
-      <div class="row">
-        <a class="btn primary" id="agilityBookmarklet" href="#">⚡ Fill AGL</a>
-        <button class="btn" id="copyBookmarkletBtn" type="button">Copy bookmark code</button>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <button class="btn" id="copySnippetBtn" type="button">Copy code for DevTools</button>
-      </div>
-      <div class="hint">If Agility blocks the bookmark (nothing happens when you click it), use DevTools instead: on the Agility page press <b>F12</b> › <b>Sources</b> › <b>Snippets</b> (under the » arrows) › <b>+ New snippet</b>, name it “Fill AGL”, paste the copied code and press Ctrl+S. From then on: F12 › Snippets › right-click Fill AGL › <b>Run</b> (or Ctrl+Enter).</div>
-      <div class="hint">Drag the <b>⚡ Fill AGL</b> button onto your browser’s bookmarks bar (press Ctrl+Shift+B to show the bar). If dragging is blocked, right-click the bookmarks bar › Add page, name it “Fill AGL”, and paste the copied code as the URL.</div>
-    </div>
-    <div class="field">
-      <label for="agDecouple">Tick this box first</label>
+      <label for="agDecouple">Extension: tick this box first</label>
       <input id="agDecouple" placeholder="Decouple Asset?">
       <div class="hint">Ticked before filling so the Equipment box can be typed in. Leave empty to skip.</div>
     </div>
-    <label>2. Which Agility field gets what</label>
+    <label>Which Agility field gets what</label>
     <div class="hint" style="margin:0 0 8px">Type the field name exactly as it appears on the Agility form. Separate several names with commas to fill more than one field. Leave a box empty to skip it.</div>
     <div class="field"><label for="agAsset" style="font-weight:400">Asset ID →</label><input id="agAsset" placeholder="Equipment, Reported Equipment, MES Asset Tag Number"></div>
     <div class="field"><label for="agRoom" style="font-weight:400">Room Number →</label><input id="agRoom" placeholder="Room Number"></div>
@@ -431,7 +422,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 
 <script>
 (async () => {
-const APP_VERSION = '1.9.1';
+const APP_VERSION = '2.0.0';
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -496,7 +487,7 @@ function showTab(name){
   if(name!=='settings') lastMainTab = name;
   currentTab = name;
   $('gearBtn').classList.toggle('active', name==='settings');
-  if(name==='settings') renderSaveLoc();
+  if(name==='settings'){ renderSaveLoc(); checkCore(); }
   document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('active', x.dataset.tab===name));
   ['log','history','dash','settings'].forEach(t => $('tab-'+t).classList.toggle('hidden', t!==name));
   if (name==='history') renderLogs();
@@ -1341,7 +1332,7 @@ a{color:var(--accent);font-size:12px}
 <div id="list"></div>
 <button class="big" id="hist">Load all into Win+V clipboard history</button>
 <div class="status" id="st"></div>
-<div style="margin-top:8px"><a href="#" id="pl">Copy job for the ⚡ Fill AGL bookmark</a> <span style="color:var(--muted);font-size:12px">(only if bookmarks work on this PC)</span></div>
+<div style="margin-top:8px"><a href="#" id="pl">Copy job again for the ⚡ Fill AGL extension</a></div>
 <script>
 const D = ${data};
 let cur = 0; const done = new Set();
@@ -1383,7 +1374,7 @@ document.getElementById('hist').onclick = async () => {
   b.disabled = false;
   st('Done. In Agility click a field and press Win+V, then pick its value. Empty list? Press Win+V once and click "Turn on" (Windows clipboard history), then try again.');
 };
-document.getElementById('pl').onclick = async e => { e.preventDefault(); await copy(D.payload); st('Copied for the Fill AGL bookmark.'); };
+document.getElementById('pl').onclick = async e => { e.preventDefault(); await copy(D.payload); st('Copied. Click ⚡ Fill AGL on the Agility form.'); };
 <\/script></body></html>`;
 }
 function openAglHelper(j){
@@ -1419,160 +1410,7 @@ async function sendToAgility(j){
   }
   if(!j.agilityAt){ await updateJob(j, {agilityAt: localInput(new Date()).replace('T',' ')}); renderDash(); }
 }
-// The bookmark that runs on the Agility page. It shows a small panel, finds each field by the
-// label next to it and fills it. It never clicks any of Agility's buttons.
-function agilityFiller(){
-  const ID = 'rl-agility-panel';
-  document.getElementById(ID)?.remove();
-  const P = document.createElement('div'); P.id = ID;
-  P.style.cssText = 'position:fixed;top:12px;right:12px;z-index:2147483647;width:360px;max-height:85vh;overflow:auto;background:#fff;color:#111;border:2px solid #0a66d8;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.35);font:13px/1.45 Segoe UI,Arial,sans-serif;padding:10px 12px;text-align:left';
-  P.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b style="font-size:14px">⚡ Fill AGL</b><button data-x title="Close" style="border:none;background:none;font-size:20px;cursor:pointer;line-height:1">×</button></div><div data-body>Reading the job from the clipboard… (click Allow if the browser asks)</div>';
-  document.body.appendChild(P);
-  P.querySelector('[data-x]').onclick = () => P.remove();
-  const body = P.querySelector('[data-body]');
-  const btn = 'style="margin:8px 6px 0 0;padding:5px 10px;border:1px solid #0a66d8;border-radius:6px;background:#fff;color:#0a66d8;cursor:pointer"';
-  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  const norm = s => (s||'').replace(/[\s ]+/g,' ').replace(/[:*]+\s*$/,'').trim().toLowerCase();
-  const compact = s => norm(s).replace(/[^a-z0-9]/g,'');
-  const data_v = 'APPVER';
-  const LOG = [];
-  const log = m => LOG.push(new Date().toTimeString().slice(0,8)+'  '+m);
-  const docs = [];
-  (function walk(w){ try{ if(w.document.body) docs.push(w.document); for(let i=0;i<w.frames.length;i++) walk(w.frames[i]); }catch(e){} })(window);
-  const visible = el => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
-  const textish = el => el.tagName==='TEXTAREA' || /^(text|search|tel|email|number|)$/i.test(el.getAttribute('type')||'');
-  const editable = el => textish(el) && !el.disabled && !el.readOnly && visible(el) && !P.contains(el);
-  const ownText = e => [...e.childNodes].map(n => n.nodeType===3 ? n.textContent : (n.tagName==='BR' ? ' ' : '')).join('');
-  function find(label){
-    const L = norm(label), C = compact(label);
-    for(const doc of docs){
-      const fields = [...doc.querySelectorAll('input,textarea')].filter(editable);
-      const labels = [...doc.body.querySelectorAll('*')].filter(e => !/^(SCRIPT|STYLE|OPTION|SELECT|TEXTAREA|BUTTON)$/.test(e.tagName) &&
-        !P.contains(e) && (norm(ownText(e))===L || (e.children.length<=3 && norm(e.textContent)===L)));
-      // The field belonging to a label is the first visible text box after it. If that box is
-      // locked (disabled/read-only) we return nothing rather than filling the wrong box.
-      const boxes = [...doc.querySelectorAll('input,textarea')].filter(el => textish(el) && visible(el) && !P.contains(el));
-      for(const lab of labels){
-        if(lab.htmlFor){ const f = doc.getElementById(lab.htmlFor); if(f && editable(f)) return f; }
-        const next = boxes.find(f => lab.compareDocumentPosition(f) & Node.DOCUMENT_POSITION_FOLLOWING);
-        if(next && editable(next)) return next;
-      }
-      if(labels.length) continue;
-      // Fallback when no label text matched: field whose id, name, title or placeholder contains it
-      const byAttr = fields.find(f => [f.id, f.name, f.title, f.placeholder, f.getAttribute('aria-label')].some(a => a && compact(a).includes(C)));
-      if(byAttr) return byAttr;
-    }
-    return null;
-  }
-  function setVal(el, f){
-    const w = el.ownerDocument.defaultView;
-    const proto = el.tagName==='TEXTAREA' ? w.HTMLTextAreaElement.prototype : w.HTMLInputElement.prototype;
-    el.focus();
-    Object.getOwnPropertyDescriptor(proto,'value').set.call(el, f.value);
-    for(const type of ['keydown','keypress','input','keyup','change']) el.dispatchEvent(new w.Event(type, {bubbles:true}));
-    // ASP.NET AJAX / Telerik controls keep their own value; update it too when present
-    try{
-      if(w.$find){
-        const c = w.$find(el.id) || w.$find(el.id.replace(/_(dateInput|text|ClientState)$/i,''));
-        if(c){
-          if(f.iso && c.set_selectedDate) c.set_selectedDate(new Date(f.iso));
-          else if(c.set_value) c.set_value(f.value);
-        }
-      }
-    }catch(e){}
-    el.dispatchEvent(new w.Event('blur', {bubbles:true})); el.blur();
-    el.style.outline = '3px solid #22c55e';
-  }
-  function labelFor(el){
-    const row = el.closest('tr');
-    let t = row ? [...row.querySelectorAll('td,th,label,span')].map(ownText).join(' ') : '';
-    if(!norm(t)){ let p = el.previousElementSibling; while(p && !norm(p.textContent)) p = p.previousElementSibling; t = p ? p.textContent : ''; }
-    return norm(t).slice(0,50);
-  }
-  function debug(){
-    const lines = [];
-    docs.forEach((doc,i) => [...doc.querySelectorAll('input,textarea')].filter(editable).forEach(el =>
-      lines.push([labelFor(el)||'(no label)', el.tagName.toLowerCase()+(el.type?':'+el.type:''), 'id='+el.id, 'name='+el.name, i?'frame '+i:''].join(' | '))));
-    const text = 'Fill AGL log (Repair Logger '+data_v+')\n'+navigator.userAgent+'\n\n--- Steps ---\n'+LOG.join('\n')+'\n\n--- Text boxes on this page (label | type | id | name) ---\n'+lines.join('\n');
-    body.innerHTML = '<div>Log of what happened. Press <b>Copy log</b> and paste it to Claude.</div><textarea data-d style="width:100%;height:220px;margin-top:6px;font:11px monospace">'+esc(text)+'</textarea><button data-c '+btn+'>Copy log</button>';
-    body.querySelector('[data-c]').onclick = async () => { const t = body.querySelector('[data-d]'); t.select(); let ok = false; try{ await navigator.clipboard.writeText(t.value); ok = true; }catch(e){ ok = document.execCommand('copy'); } body.querySelector('[data-c]').textContent = ok ? '✓ Copied' : 'Select all and copy'; };
-  }
-  function askPaste(msg){
-    body.innerHTML = '<div style="color:#b45309">'+esc(msg)+'</div><textarea data-p style="width:100%;height:70px;margin-top:6px" placeholder="Paste here (Ctrl+V)"></textarea><button data-go '+btn+'>Fill</button><button data-dbg '+btn+'>📋 Log</button>';
-    body.querySelector('[data-go]').onclick = () => run(body.querySelector('[data-p]').value.trim());
-    body.querySelector('[data-dbg]').onclick = debug;
-    body.querySelector('[data-p]').focus();
-  }
-  // Find a checkbox by the text next to it, e.g. "Decouple Asset?"
-  function findCheckbox(label){
-    const L = norm(label).replace(/\?$/,'');
-    for(const doc of docs){
-      const boxes = [...doc.querySelectorAll('input[type=checkbox]')].filter(b => visible(b) && !P.contains(b));
-      const labels = [...doc.body.querySelectorAll('*')].filter(e => !P.contains(e) && !/^(SCRIPT|STYLE)$/.test(e.tagName) &&
-        norm(ownText(e)).replace(/\?$/,'')===L);
-      for(const lab of labels){
-        if(lab.htmlFor){ const b = doc.getElementById(lab.htmlFor); if(b && b.type==='checkbox') return b; }
-        const inside = lab.parentElement && lab.parentElement.querySelector('input[type=checkbox]');
-        if(inside && boxes.includes(inside)) return inside;
-        const before = boxes.filter(b => b.compareDocumentPosition(lab) & Node.DOCUMENT_POSITION_FOLLOWING).pop();
-        if(before) return before;
-      }
-    }
-    return null;
-  }
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const desc = el => el ? el.tagName.toLowerCase()+(el.type?':'+el.type:'')+' id='+(el.id||'-')+' name='+(el.name||'-')+(el.disabled?' DISABLED':'')+(el.readOnly?' READONLY':'') : 'none';
-  async function run(t){
-    if(!t.startsWith('REPAIRLOGGER:')) return askPaste('That isn’t a Repair Logger job. In Repair Logger press “→ AGL” on a job, then paste it here.');
-    let data; try{ data = JSON.parse(t.slice(13)); }catch(e){ return askPaste('Could not read that job. Copy it again from Repair Logger.'); }
-    log('Job '+data.asset+', '+data.fields.length+' field(s) to fill');
-    const rows = [];
-    // Tick "Decouple Asset?" first so the Equipment box can be typed in
-    if(data.decouple){
-      const box = findCheckbox(data.decouple);
-      log('Decouple checkbox "'+data.decouple+'": '+(box ? desc(box)+' checked='+box.checked : 'not found'));
-      if(!box) rows.push(['#555','– '+data.decouple+' not on this page']);
-      else if(box.checked) rows.push(['#15803d','✓ '+data.decouple+' (already ticked)']);
-      else {
-        body.textContent = 'Ticking “'+data.decouple+'”…';
-        box.click();
-        rows.push(['#15803d','✓ '+data.decouple+' ticked']);
-        // wait for the page to unlock the asset field (up to 4 seconds)
-        const firstAsset = data.fields.find(f => f.asset);
-        let i=0; for(; i<20 && firstAsset && !find(firstAsset.label); i++) await sleep(200);
-        log('Waited '+(i*200)+' ms for "'+(firstAsset?firstAsset.label:'')+'" to unlock: '+(firstAsset && find(firstAsset.label) ? 'unlocked' : 'still locked'));
-        await sleep(300);
-        if(!document.getElementById(ID)) return; // page reloaded
-      }
-    }
-    for(const f of data.fields){
-      const el = find(f.label);
-      if(!el){ rows.push(['#b91c1c','✕ '+f.label+': not on this page']); log('Field "'+f.label+'": not found'); continue; }
-      try{ setVal(el, f); rows.push(['#15803d','✓ '+f.label]); log('Field "'+f.label+'" -> '+desc(el)+' value now '+JSON.stringify(el.value).slice(0,60)); }
-      catch(e){ rows.push(['#b45309','⚠ '+f.label+': '+e.message]); log('Field "'+f.label+'" -> '+desc(el)+' ERROR '+e.message); }
-    }
-    body.innerHTML = '<div>Job <b>'+esc(data.asset)+'</b></div><div style="margin:6px 0">'+rows.map(r=>'<div style="color:'+r[0]+'">'+esc(r[1])+'</div>').join('')+
-      '</div><div style="color:#555">Filled fields are outlined in green. Check them, then press <b>Complete</b> yourself.<br>If the page reloaded after ticking Decouple Asset, or some fields only appear later, click <b>⚡ Fill AGL</b> again.</div><button data-dbg '+btn+'>📋 Log</button>';
-    body.querySelector('[data-dbg]').onclick = debug;
-  }
-  (async () => {
-    let t = '';
-    log('Started on '+location.pathname+' | frames: '+docs.length+' | $find: '+(typeof window.$find));
-    try{ t = (await navigator.clipboard.readText()).trim(); log('Clipboard read: '+(t.startsWith('REPAIRLOGGER:') ? 'job found' : 'no job ('+t.length+' chars)')); }catch(e){ log('Clipboard read failed: '+e.name+' '+e.message); }
-    if(!t.startsWith('REPAIRLOGGER:')){
-      // Backup: the browser extension has clipboard permission, which lets it paste into a hidden box
-      try{
-        const ta = document.createElement('textarea'); ta.style.cssText = 'position:fixed;left:-9999px;top:0';
-        P.appendChild(ta); ta.focus();
-        const ok = document.execCommand('paste'); const v = ta.value.trim(); ta.remove();
-        log('Paste backup: '+(ok ? (v.startsWith('REPAIRLOGGER:') ? 'job found' : 'no job') : 'not allowed'));
-        if(v.startsWith('REPAIRLOGGER:')) t = v;
-      }catch(e){ log('Paste backup failed: '+e.message); }
-    }
-    if(t.startsWith('REPAIRLOGGER:')) run(t);
-    else askPaste('Couldn’t read a job from the clipboard. In Repair Logger press “→ AGL” on a job, then paste it here (Ctrl+V).');
-  })();
-}
+
 // ---------- Fill AGL Edge extension (built here, so it always matches this version) ----------
 const CRC_TABLE = (() => { const t = new Uint32Array(256); for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c = c&1 ? 0xEDB88320^(c>>>1) : c>>>1; t[n]=c>>>0; } return t; })();
 const crc32 = u8 => { let c = 0xFFFFFFFF; for(let i=0;i<u8.length;i++) c = CRC_TABLE[(c^u8[i])&0xFF]^(c>>>8); return (c^0xFFFFFFFF)>>>0; };
@@ -1599,13 +1437,47 @@ function makeZip(files){
   e.setUint32(0,0x06054b50,true); e.setUint16(8,files.length,true); e.setUint16(10,files.length,true); e.setUint32(12,cdSize,true); e.setUint32(16,offset,true);
   return new Blob([...parts, ...central, new Uint8Array(e.buffer)], {type:'application/zip'});
 }
-function extensionContentScript(){
-  return `// Fill AGL extension, built from Repair Logger ${APP_VERSION}.
+const CORE_PATH = () => ghPrefix()+'tools/fill-agl-core.enc';
+function extStatus(msg, kind){ const el=$('extStatus'); el.textContent=msg; el.style.color = kind==='ok' ? 'var(--ok)' : kind==='err' ? 'var(--err)' : kind==='warn' ? 'var(--warn)' : 'var(--muted)'; }
+function coreReady(){
+  if(!ghConfigured()){ extStatus('Set your GitHub username, token and data repository first (GitHub account / Save location).', 'warn'); return false; }
+  if(!cryptoKeys){ extStatus('Add your encryption key on this device first (Encryption key).', 'warn'); return false; }
+  return true;
+}
+const coreVersion = src => (src.match(/FILL_AGL_VERSION\s*=\s*'([^']+)'/)||[])[1];
+async function uploadCore(file){
+  const src = await file.text();
+  const ver = coreVersion(src);
+  if(!ver || !/function agilityFiller\(/.test(src)) return extStatus('That isn’t a Fill AGL code file (fill-agl-core.js).', 'err');
+  extStatus('Encrypting and uploading…');
+  try{
+    await ensureRepoKey();
+    await ghPut(settings.ghRepo, ghBranch(), CORE_PATH(), await encryptBytes(te.encode(src)), 'Repair Logger: update tools');
+    extStatus('✓ Extension code '+ver+' stored encrypted in '+settings.ghOwner+'/'+settings.ghRepo+'. You can now download the extension.', 'ok');
+  }catch(e){ extStatus('Upload failed: '+e.message, 'err'); }
+}
+async function loadCore(){
+  await ensureRepoKey();
+  const enc = await ghGetBytes(settings.ghRepo, ghBranch(), CORE_PATH());
+  if(!enc) throw new Error('No extension code in your repository yet. Use “Upload extension code” with the fill-agl-core.js file.');
+  let src;
+  try{ src = td.decode(await decryptBytes(enc)); }catch{ throw new Error('Could not decrypt the extension code. Is this device using the right encryption key?'); }
+  const ver = coreVersion(src);
+  if(!ver) throw new Error('The stored extension code is damaged. Upload fill-agl-core.js again.');
+  return {src, ver};
+}
+async function checkCore(){
+  if(!ghConfigured() || !cryptoKeys){ coreReady(); return; }
+  try{ const {ver} = await loadCore(); extStatus('🔒 Extension code '+ver+' is in your private repository.', 'ok'); }
+  catch(e){ extStatus(e.message, 'warn'); }
+}
+function extensionContentScript(core){
+  return `// Fill AGL extension ${core.ver} for Repair Logger.
 // Adds a "⚡ Fill AGL" button to Agility pages. Clicking it fills the form from a job copied in
 // Repair Logger (→ AGL). It only fills fields and ticks "Decouple Asset?"; it never submits or clicks Complete.
 (() => {
   if (window.top !== window || document.getElementById('rl-fill-agl-btn')) return;
-  ${agilityFiller.toString().replace('APPVER', APP_VERSION+' extension')}
+  ${core.src.replace(/^const FILL_AGL_VERSION.*$/m,'').replace('APPVER', core.ver+' extension')}
   const b = document.createElement('button');
   b.id = 'rl-fill-agl-btn';
   b.textContent = '⚡ Fill AGL';
@@ -1628,28 +1500,29 @@ async function extensionIcon(n){
   return new Uint8Array(await blob.arrayBuffer());
 }
 async function downloadExtension(){
+  if(!coreReady()) return;
+  extStatus('Fetching extension code from your private repository…');
+  const core = await loadCore();
   const manifest = {
     manifest_version: 3,
     name: 'Fill AGL (Repair Logger)',
-    version: APP_VERSION.replace(/[^0-9.]/g,''),
+    version: core.ver.replace(/[^0-9.]/g,''),
     description: 'Adds a Fill AGL button to Agility forms that fills fields from a job copied in Repair Logger. Never submits the form.',
     permissions: ['clipboardRead'],
     content_scripts: [{ matches: ['*://agility/*', '*://agility.*/*'], js: ['fill-agl.js'], run_at: 'document_idle' }],
     icons: { '48': 'icon48.png', '128': 'icon128.png' }
   };
-  const readme = `Fill AGL extension for Microsoft Edge (Repair Logger ${APP_VERSION})\r\n\r\nInstall:\r\n1. Unzip this file to a folder you will keep (e.g. Documents\\\\Fill AGL).\r\n2. In Edge open edge://extensions and turn on Developer mode (bottom-left).\r\n3. Click "Load unpacked" and choose that folder.\r\n4. Open an Agility form: a blue "Fill AGL" button appears at the bottom-right.\r\n\r\nUse: in Repair Logger press "-> AGL" on a job, then click "Fill AGL" on the Agility form.\r\nIt only fills fields and ticks "Decouple Asset?". It never presses Complete or submits anything.\r\n\r\nUpdate: download again from Repair Logger > Settings > Fill AGL, unzip over the same folder,\r\nthen click the reload icon on the extension in edge://extensions.\r\n`;
+  const readme = `Fill AGL extension ${core.ver} for Microsoft Edge (Repair Logger)\r\n\r\nInstall:\r\n1. Unzip this file to a folder you will keep (e.g. Documents\\\\Fill AGL).\r\n2. In Edge open edge://extensions and turn on Developer mode (bottom-left).\r\n3. Click "Load unpacked" and choose that folder.\r\n4. Open an Agility form: a blue "Fill AGL" button appears at the bottom-right.\r\n\r\nUse: in Repair Logger press "-> AGL" on a job, then click "Fill AGL" on the Agility form.\r\nIt only fills fields and ticks "Decouple Asset?". It never presses Complete or submits anything.\r\n\r\nUpdate: download again from Repair Logger > Settings > Fill AGL, unzip over the same folder,\r\nthen click the reload icon on the extension in edge://extensions.\r\n`;
   const zip = makeZip([
     {name:'manifest.json', data: te.encode(JSON.stringify(manifest, null, 2))},
-    {name:'fill-agl.js', data: te.encode(extensionContentScript())},
+    {name:'fill-agl.js', data: te.encode(extensionContentScript(core))},
     {name:'icon48.png', data: await extensionIcon(48)},
     {name:'icon128.png', data: await extensionIcon(128)},
     {name:'README.txt', data: te.encode(readme)}
   ]);
-  download(new File([zip], `fill-agl-extension-${APP_VERSION}.zip`, {type:'application/zip'}));
-  toast('Extension downloaded. Unzip it, then Load unpacked in edge://extensions.');
+  download(new File([zip], `fill-agl-extension-${core.ver}.zip`, {type:'application/zip'}));
+  extStatus('✓ Downloaded extension '+core.ver+'. Unzip it, then Load unpacked in edge://extensions.', 'ok');
 }
-const snippetCode = () => '// Fill AGL (Repair Logger '+APP_VERSION+'). Fills the Agility form; never clicks Complete.\n('+agilityFiller.toString().replace('APPVER', APP_VERSION)+')();\n';
-const bookmarkletCode = () => 'javascript:'+encodeURIComponent('('+agilityFiller.toString().replace('APPVER', APP_VERSION)+')()');
 async function renderDash(){
   const q = $('dashSearch').value.trim().toLowerCase();
   const open = dashJobs.filter(j=>j.status!=='completed'), done = dashJobs.filter(j=>j.status==='completed');
@@ -1709,16 +1582,9 @@ function bindSettings(){
     $('folderModeHint').textContent = 'Not available in this browser (iPhone Safari can’t pick folders). On iPhone use Share sheet → Save to Files. On a PC use Chrome or Edge.'; }
   $('signOutBtn').onclick = () => { store.set('token',null); updateOdStatus(); toast('Signed out'); };
   bindGitHubSettings();
-  const bm = $('agilityBookmarklet');
-  bm.href = bookmarkletCode();
-  bm.onclick = e => { e.preventDefault(); toast('Drag this button to your bookmarks bar. Don’t click it here.'); };
-  $('copyBookmarkletBtn').onclick = async () => {
-    try{ await navigator.clipboard.writeText(bookmarkletCode()); toast('Bookmark code copied'); }catch{ prompt('Copy this bookmark code:', bookmarkletCode()); }
-  };
-  $('dlExtBtn').onclick = () => downloadExtension().catch(e => toast('Could not build the extension: '+e.message));
-  $('copySnippetBtn').onclick = async () => {
-    try{ await navigator.clipboard.writeText(snippetCode()); toast('DevTools code copied'); }catch{ prompt('Copy this code:', snippetCode()); }
-  };
+  $('dlExtBtn').onclick = () => downloadExtension().catch(e => extStatus('Could not build the extension: '+e.message, 'err'));
+  $('upCoreBtn').onclick = () => { if(!coreReady()) return; $('coreFile').click(); };
+  $('coreFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value=''; if(f) uploadCore(f); });
   $('agResetBtn').onclick = () => {
     ['agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom'].forEach(k=>{ settings[k]=DEFAULT_SETTINGS[k]; $(k).value=settings[k]; });
     saveSettings(); toast('Agility fields reset');
