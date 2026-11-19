@@ -367,19 +367,24 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
   </div>
 
   <div class="card">
-    <h2>Agility</h2>
-    <div class="hint" style="margin:0 0 10px">Fill the Agility form from a job. On the PC Dashboard press <b>→ Agility</b> on a job, open the Agility form in the same browser, then click the <b>Fill Agility</b> bookmark. It only fills fields; you check the form and press Complete yourself.</div>
+    <h2>Fill AGL</h2>
+    <div class="hint" style="margin:0 0 10px">Fill the Agility form from a job. On the PC Dashboard press <b>→ AGL</b> on a job, open the Agility form in the same browser, then click the <b>Fill AGL</b> bookmark. It only fills fields; you check the form and press Complete yourself.</div>
     <div class="field">
       <label>1. Add the bookmark (once per PC)</label>
       <div class="row">
-        <a class="btn primary" id="agilityBookmarklet" href="#">⚡ Fill Agility</a>
+        <a class="btn primary" id="agilityBookmarklet" href="#">⚡ Fill AGL</a>
         <button class="btn" id="copyBookmarkletBtn" type="button">Copy bookmark code</button>
       </div>
-      <div class="hint">Drag the <b>⚡ Fill Agility</b> button onto your browser’s bookmarks bar (press Ctrl+Shift+B to show the bar). If dragging is blocked, right-click the bookmarks bar › Add page, name it “Fill Agility”, and paste the copied code as the URL.</div>
+      <div class="hint">Drag the <b>⚡ Fill AGL</b> button onto your browser’s bookmarks bar (press Ctrl+Shift+B to show the bar). If dragging is blocked, right-click the bookmarks bar › Add page, name it “Fill AGL”, and paste the copied code as the URL.</div>
+    </div>
+    <div class="field">
+      <label for="agDecouple">Tick this box first</label>
+      <input id="agDecouple" placeholder="Decouple Asset?">
+      <div class="hint">Ticked before filling so the Equipment box can be typed in. Leave empty to skip.</div>
     </div>
     <label>2. Which Agility field gets what</label>
     <div class="hint" style="margin:0 0 8px">Type the field name exactly as it appears on the Agility form. Separate several names with commas to fill more than one field. Leave a box empty to skip it.</div>
-    <div class="field"><label for="agAsset" style="font-weight:400">Asset ID →</label><input id="agAsset" placeholder="MES Asset Tag Number, Reported Equipment"></div>
+    <div class="field"><label for="agAsset" style="font-weight:400">Asset ID →</label><input id="agAsset" placeholder="Equipment, Reported Equipment, MES Asset Tag Number"></div>
     <div class="field"><label for="agFault" style="font-weight:400">Fault →</label><input id="agFault" placeholder="Additional Comments"></div>
     <div class="field"><label for="agResolution" style="font-weight:400">Resolution →</label><input id="agResolution" placeholder="Comments"></div>
     <div class="field"><label for="agStart" style="font-weight:400">Start time →</label><input id="agStart" placeholder="Response Date/Time"></div>
@@ -398,7 +403,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 
 <script>
 (async () => {
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.7.0';
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -414,8 +419,8 @@ const DEFAULT_SETTINGS = {
   odClient: '',
   ghOwner: '', ghRepo: 'repair-logs', ghBranch: 'main', ghFolder: '',
   appRepo: 'repair-logger', appBranch: 'main', appPath: 'index.html',
-  agAsset: 'MES Asset Tag Number, Reported Equipment', agFault: 'Additional Comments', agResolution: 'Comments',
-  agStart: 'Response Date/Time', agEnd: 'Completion Date',
+  agAsset: 'Equipment, Reported Equipment, MES Asset Tag Number', agFault: 'Additional Comments', agResolution: 'Comments',
+  agStart: 'Response Date/Time', agEnd: 'Completion Date', agDecouple: 'Decouple Asset?',
   odTenant: 'common',
   shareFile: 'Job_{asset}_{yyyy}-{MM}-{dd}.csv'
 };
@@ -431,6 +436,7 @@ const DEFAULT_SETTINGS = {
   history.replaceState(null,'',location.pathname+location.search);
 })();
 let settings = Object.assign({}, DEFAULT_SETTINGS, store.get('settings', {}));
+if(settings.agAsset==='MES Asset Tag Number, Reported Equipment') settings.agAsset = DEFAULT_SETTINGS.agAsset;
 let logs = store.get('logs', []);
 logs.forEach(l => { l.status ||= 'open'; l.photos ||= []; });
 const saveSettings = () => store.set('settings', settings);
@@ -1254,16 +1260,16 @@ async function setStatus(j, status){
 const labelsOf = k => (settings[k]||'').split(',').map(x=>x.trim()).filter(Boolean);
 function agilityPayload(j){
   const fields = [];
-  const add = (k, value) => labelsOf(k).forEach(label => fields.push({label, value: value ?? ''}));
+  const add = (k, value, iso) => labelsOf(k).forEach(label => fields.push(Object.assign({label, value: value ?? ''}, iso ? {iso} : {}, k==='agAsset' ? {asset:true} : {})));
   add('agAsset', j.asset); add('agFault', j.fault); add('agResolution', j.resolution);
-  add('agStart', fmt(j.start)); add('agEnd', fmt(j.end));
-  return 'REPAIRLOGGER:'+JSON.stringify({v:1, asset:j.asset, fields});
+  add('agStart', fmt(j.start), j.start ? j.start.replace(' ','T') : null); add('agEnd', fmt(j.end), j.end ? j.end.replace(' ','T') : null);
+  return 'REPAIRLOGGER:'+JSON.stringify({v:1, asset:j.asset, decouple:(settings.agDecouple||'').trim(), fields});
 }
 async function sendToAgility(j){
   const text = agilityPayload(j);
   try{ await navigator.clipboard.writeText(text); }
   catch{ const t=document.createElement('textarea'); t.value=text; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
-  toast(`${j.asset} copied. Open the Agility form and click ⚡ Fill Agility.`);
+  toast(`${j.asset} copied. Open the Agility form and click ⚡ Fill AGL.`);
   if(j.photos?.length && confirm(`Also download ${j.photos.length} photo(s) so you can add them with “Add Attachments” in Agility?`)){
     for(const name of j.photos){
       let blob = await idb.get('p:'+name);
@@ -1275,50 +1281,138 @@ async function sendToAgility(j){
   }
   if(!j.agilityAt){ await updateJob(j, {agilityAt: localInput(new Date()).replace('T',' ')}); renderDash(); }
 }
-// The bookmark that runs on the Agility page. It finds each field by the text label next to it
-// and fills it. It never clicks any buttons.
+// The bookmark that runs on the Agility page. It shows a small panel, finds each field by the
+// label next to it and fills it. It never clicks any of Agility's buttons.
 function agilityFiller(){
-  (async () => {
-    let t = '';
-    try{ t = await navigator.clipboard.readText(); }catch(e){}
-    if(!t.startsWith('REPAIRLOGGER:')) t = prompt('Paste the job copied from Repair Logger (press → Agility first):') || '';
-    if(!t.startsWith('REPAIRLOGGER:')) return alert('No Repair Logger job found.\n\nIn Repair Logger, press “→ Agility” on a job, then click this bookmark again.');
-    const data = JSON.parse(t.slice(13));
-    const norm = s => (s||'').replace(/[\s ]+/g,' ').replace(/[:*]+\s*$/,'').trim().toLowerCase();
-    const docs = [];
-    (function walk(w){ try{ docs.push(w.document); for(let i=0;i<w.frames.length;i++) walk(w.frames[i]); }catch(e){} })(window);
-    const visible = el => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
-    const editable = el => (el.tagName==='TEXTAREA' || /^(text|search|tel|email|)$/i.test(el.getAttribute('type')||'')) && !el.disabled && visible(el);
-    function find(label){
-      const L = norm(label);
-      for(const doc of docs){
-        const labels = [...doc.querySelectorAll('body *')].filter(e => !/^(SCRIPT|STYLE|OPTION|SELECT|TEXTAREA)$/.test(e.tagName) &&
-          norm([...e.childNodes].filter(n=>n.nodeType===3 || n.tagName==='BR').map(n=>n.nodeType===3?n.textContent:' ').join(''))===L);
-        for(const lab of labels){
-          if(lab.htmlFor){ const f = doc.getElementById(lab.htmlFor); if(f && editable(f)) return f; }
-          const fields = [...doc.querySelectorAll('input,textarea')].filter(editable);
-          const next = fields.find(f => lab.compareDocumentPosition(f) & Node.DOCUMENT_POSITION_FOLLOWING);
-          if(next) return next;
+  const ID = 'rl-agility-panel';
+  document.getElementById(ID)?.remove();
+  const P = document.createElement('div'); P.id = ID;
+  P.style.cssText = 'position:fixed;top:12px;right:12px;z-index:2147483647;width:360px;max-height:85vh;overflow:auto;background:#fff;color:#111;border:2px solid #0a66d8;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.35);font:13px/1.45 Segoe UI,Arial,sans-serif;padding:10px 12px;text-align:left';
+  P.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b style="font-size:14px">⚡ Fill AGL</b><button data-x title="Close" style="border:none;background:none;font-size:20px;cursor:pointer;line-height:1">×</button></div><div data-body>Reading the job from the clipboard… (click Allow if the browser asks)</div>';
+  document.body.appendChild(P);
+  P.querySelector('[data-x]').onclick = () => P.remove();
+  const body = P.querySelector('[data-body]');
+  const btn = 'style="margin:8px 6px 0 0;padding:5px 10px;border:1px solid #0a66d8;border-radius:6px;background:#fff;color:#0a66d8;cursor:pointer"';
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const norm = s => (s||'').replace(/[\s ]+/g,' ').replace(/[:*]+\s*$/,'').trim().toLowerCase();
+  const compact = s => norm(s).replace(/[^a-z0-9]/g,'');
+  const docs = [];
+  (function walk(w){ try{ if(w.document.body) docs.push(w.document); for(let i=0;i<w.frames.length;i++) walk(w.frames[i]); }catch(e){} })(window);
+  const visible = el => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+  const textish = el => el.tagName==='TEXTAREA' || /^(text|search|tel|email|number|)$/i.test(el.getAttribute('type')||'');
+  const editable = el => textish(el) && !el.disabled && !el.readOnly && visible(el) && !P.contains(el);
+  const ownText = e => [...e.childNodes].map(n => n.nodeType===3 ? n.textContent : (n.tagName==='BR' ? ' ' : '')).join('');
+  function find(label){
+    const L = norm(label), C = compact(label);
+    for(const doc of docs){
+      const fields = [...doc.querySelectorAll('input,textarea')].filter(editable);
+      const labels = [...doc.body.querySelectorAll('*')].filter(e => !/^(SCRIPT|STYLE|OPTION|SELECT|TEXTAREA|BUTTON)$/.test(e.tagName) &&
+        !P.contains(e) && (norm(ownText(e))===L || (e.children.length<=3 && norm(e.textContent)===L)));
+      // The field belonging to a label is the first visible text box after it. If that box is
+      // locked (disabled/read-only) we return nothing rather than filling the wrong box.
+      const boxes = [...doc.querySelectorAll('input,textarea')].filter(el => textish(el) && visible(el) && !P.contains(el));
+      for(const lab of labels){
+        if(lab.htmlFor){ const f = doc.getElementById(lab.htmlFor); if(f && editable(f)) return f; }
+        const next = boxes.find(f => lab.compareDocumentPosition(f) & Node.DOCUMENT_POSITION_FOLLOWING);
+        if(next && editable(next)) return next;
+      }
+      if(labels.length) continue;
+      // Fallback when no label text matched: field whose id, name, title or placeholder contains it
+      const byAttr = fields.find(f => [f.id, f.name, f.title, f.placeholder, f.getAttribute('aria-label')].some(a => a && compact(a).includes(C)));
+      if(byAttr) return byAttr;
+    }
+    return null;
+  }
+  function setVal(el, f){
+    const w = el.ownerDocument.defaultView;
+    const proto = el.tagName==='TEXTAREA' ? w.HTMLTextAreaElement.prototype : w.HTMLInputElement.prototype;
+    el.focus();
+    Object.getOwnPropertyDescriptor(proto,'value').set.call(el, f.value);
+    for(const type of ['keydown','keypress','input','keyup','change']) el.dispatchEvent(new w.Event(type, {bubbles:true}));
+    // ASP.NET AJAX / Telerik controls keep their own value; update it too when present
+    try{
+      if(w.$find){
+        const c = w.$find(el.id) || w.$find(el.id.replace(/_(dateInput|text|ClientState)$/i,''));
+        if(c){
+          if(f.iso && c.set_selectedDate) c.set_selectedDate(new Date(f.iso));
+          else if(c.set_value) c.set_value(f.value);
         }
       }
-      return null;
+    }catch(e){}
+    el.dispatchEvent(new w.Event('blur', {bubbles:true})); el.blur();
+    el.style.outline = '3px solid #22c55e';
+  }
+  function labelFor(el){
+    const row = el.closest('tr');
+    let t = row ? [...row.querySelectorAll('td,th,label,span')].map(ownText).join(' ') : '';
+    if(!norm(t)){ let p = el.previousElementSibling; while(p && !norm(p.textContent)) p = p.previousElementSibling; t = p ? p.textContent : ''; }
+    return norm(t).slice(0,50);
+  }
+  function debug(){
+    const lines = [];
+    docs.forEach((doc,i) => [...doc.querySelectorAll('input,textarea')].filter(editable).forEach(el =>
+      lines.push([labelFor(el)||'(no label)', el.tagName.toLowerCase()+(el.type?':'+el.type:''), 'id='+el.id, 'name='+el.name, i?'frame '+i:''].join(' | '))));
+    body.innerHTML = '<div>Fields found on this page (copy and send this to fix the matching):</div><textarea data-d style="width:100%;height:200px;margin-top:6px;font:11px monospace">'+esc(location.pathname+'\n'+lines.join('\n'))+'</textarea><button data-c '+btn+'>Copy</button>';
+    body.querySelector('[data-c]').onclick = () => { const t = body.querySelector('[data-d]'); t.select(); document.execCommand('copy'); };
+  }
+  function askPaste(msg){
+    body.innerHTML = '<div style="color:#b45309">'+esc(msg)+'</div><textarea data-p style="width:100%;height:70px;margin-top:6px" placeholder="Paste here (Ctrl+V)"></textarea><button data-go '+btn+'>Fill</button><button data-dbg '+btn+'>Show page fields</button>';
+    body.querySelector('[data-go]').onclick = () => run(body.querySelector('[data-p]').value.trim());
+    body.querySelector('[data-dbg]').onclick = debug;
+    body.querySelector('[data-p]').focus();
+  }
+  // Find a checkbox by the text next to it, e.g. "Decouple Asset?"
+  function findCheckbox(label){
+    const L = norm(label).replace(/\?$/,'');
+    for(const doc of docs){
+      const boxes = [...doc.querySelectorAll('input[type=checkbox]')].filter(b => visible(b) && !P.contains(b));
+      const labels = [...doc.body.querySelectorAll('*')].filter(e => !P.contains(e) && !/^(SCRIPT|STYLE)$/.test(e.tagName) &&
+        norm(ownText(e)).replace(/\?$/,'')===L);
+      for(const lab of labels){
+        if(lab.htmlFor){ const b = doc.getElementById(lab.htmlFor); if(b && b.type==='checkbox') return b; }
+        const inside = lab.parentElement && lab.parentElement.querySelector('input[type=checkbox]');
+        if(inside && boxes.includes(inside)) return inside;
+        const before = boxes.filter(b => b.compareDocumentPosition(lab) & Node.DOCUMENT_POSITION_FOLLOWING).pop();
+        if(before) return before;
+      }
     }
-    function setVal(el, v){
-      const proto = el.tagName==='TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-      el.focus();
-      Object.getOwnPropertyDescriptor(proto,'value').set.call(el, v);
-      for(const type of ['input','keyup','change']) el.dispatchEvent(new Event(type, {bubbles:true}));
-      el.dispatchEvent(new Event('blur', {bubbles:true})); el.blur();
-      el.style.outline = '3px solid #22c55e';
+    return null;
+  }
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  async function run(t){
+    if(!t.startsWith('REPAIRLOGGER:')) return askPaste('That isn’t a Repair Logger job. In Repair Logger press “→ AGL” on a job, then paste it here.');
+    let data; try{ data = JSON.parse(t.slice(13)); }catch(e){ return askPaste('Could not read that job. Copy it again from Repair Logger.'); }
+    const rows = [];
+    // Tick "Decouple Asset?" first so the Equipment box can be typed in
+    if(data.decouple){
+      const box = findCheckbox(data.decouple);
+      if(!box) rows.push(['#555','– '+data.decouple+' not on this page']);
+      else if(box.checked) rows.push(['#15803d','✓ '+data.decouple+' (already ticked)']);
+      else {
+        body.textContent = 'Ticking “'+data.decouple+'”…';
+        box.click();
+        rows.push(['#15803d','✓ '+data.decouple+' ticked']);
+        // wait for the page to unlock the asset field (up to 4 seconds)
+        const firstAsset = data.fields.find(f => f.asset);
+        for(let i=0; i<20 && firstAsset && !find(firstAsset.label); i++) await sleep(200);
+        await sleep(300);
+        if(!document.getElementById(ID)) return; // page reloaded
+      }
     }
-    const done = [], missed = [];
     for(const f of data.fields){
       const el = find(f.label);
-      if(el){ setVal(el, f.value); done.push(f.label); } else missed.push(f.label);
+      if(!el){ rows.push(['#b91c1c','✕ '+f.label+': not on this page']); continue; }
+      try{ setVal(el, f); rows.push(['#15803d','✓ '+f.label]); }catch(e){ rows.push(['#b45309','⚠ '+f.label+': '+e.message]); }
     }
-    alert('Repair Logger: filled '+done.length+' field(s) for '+data.asset+'.'+
-      (missed.length ? '\n\nCould not find: '+missed.join(', ')+'\n(Check the field names in Repair Logger › Settings › Agility.)' : '')+
-      '\n\nFilled fields are outlined in green. Check them, then press Complete yourself.');
+    body.innerHTML = '<div>Job <b>'+esc(data.asset)+'</b></div><div style="margin:6px 0">'+rows.map(r=>'<div style="color:'+r[0]+'">'+esc(r[1])+'</div>').join('')+
+      '</div><div style="color:#555">Filled fields are outlined in green. Check them, then press <b>Complete</b> yourself.<br>If the page reloaded after ticking Decouple Asset, or some fields only appear later, click <b>⚡ Fill AGL</b> again.</div><button data-dbg '+btn+'>Show page fields</button>';
+    body.querySelector('[data-dbg]').onclick = debug;
+  }
+  (async () => {
+    let t = '';
+    try{ t = (await navigator.clipboard.readText()).trim(); }catch(e){}
+    if(t.startsWith('REPAIRLOGGER:')) run(t);
+    else askPaste('Couldn’t read a job from the clipboard. In Repair Logger press “→ AGL” on a job, then paste it here (Ctrl+V).');
   })();
 }
 const bookmarkletCode = () => 'javascript:'+encodeURIComponent('('+agilityFiller.toString()+')()');
@@ -1344,8 +1438,8 @@ async function renderDash(){
     const cr=document.createElement('button'); cr.type='button'; cr.className='btn small'; cr.textContent='Copy row'; cr.style.marginLeft='6px';
     cr.onclick = () => { copyBtn([j.asset,j.fault,j.resolution,(j.tags||[]).join(' '),fmt(j.start),fmt(j.end),j.durationMin].join('\t')).click(); toast('Row copied'); };
     const ag=document.createElement('button'); ag.type='button'; ag.className='btn small'; ag.style.marginLeft='6px';
-    ag.textContent = j.agilityAt ? '✓ Agility' : '→ Agility';
-    ag.title = j.agilityAt ? 'Sent to Agility '+fmt(j.agilityAt)+'. Click to copy again.' : 'Copy this job, then click ⚡ Fill Agility on the Agility form';
+    ag.textContent = j.agilityAt ? '✓ AGL' : '→ AGL';
+    ag.title = j.agilityAt ? 'Sent to Agility '+fmt(j.agilityAt)+'. Click to copy again.' : 'Copy this job, then click ⚡ Fill AGL on the Agility form';
     ag.onclick = () => sendToAgility(j);
     act.append(b, ag, cr); tr.append(act);
     body.appendChild(tr);
@@ -1370,7 +1464,7 @@ function bindSettings(){
     r.checked = r.value===settings.mode;
     r.onchange = () => { settings.mode=r.value; saveSettings(); showModeSettings(); };
   });
-  ['odFolder','odFile','odClient','odTenant','shareFile','ghOwner','ghRepo','ghBranch','ghFolder','appRepo','appBranch','appPath','agAsset','agFault','agResolution','agStart','agEnd'].forEach(k=>{
+  ['odFolder','odFile','odClient','odTenant','shareFile','ghOwner','ghRepo','ghBranch','ghFolder','appRepo','appBranch','appPath','agAsset','agFault','agResolution','agStart','agEnd','agDecouple'].forEach(k=>{
     $(k).value = settings[k]||'';
     $(k).addEventListener('change', ()=>{ settings[k]=$(k).value.trim(); saveSettings(); renderSaveLoc(); });
   });
@@ -1388,12 +1482,12 @@ function bindSettings(){
     try{ await navigator.clipboard.writeText(bookmarkletCode()); toast('Bookmark code copied'); }catch{ prompt('Copy this bookmark code:', bookmarkletCode()); }
   };
   $('agResetBtn').onclick = () => {
-    ['agAsset','agFault','agResolution','agStart','agEnd'].forEach(k=>{ settings[k]=DEFAULT_SETTINGS[k]; $(k).value=settings[k]; });
+    ['agAsset','agFault','agResolution','agStart','agEnd','agDecouple'].forEach(k=>{ settings[k]=DEFAULT_SETTINGS[k]; $(k).value=settings[k]; });
     saveSettings(); toast('Agility fields reset');
   };
   $('setupLinkBtn').onclick = async () => {
-    const {mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd} = settings;
-    const enc = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd})))));
+    const {mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple} = settings;
+    const enc = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple})))));
     const link = redirectUri+'#cfg='+enc;
     try{ await navigator.clipboard.writeText(link); toast('Setup link copied'); }catch{ prompt('Copy this link:', link); }
   };
