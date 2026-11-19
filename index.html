@@ -93,8 +93,29 @@ th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px soli
 th{position:sticky;top:0;background:var(--card);font-size:12px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);white-space:nowrap}
 tbody tr:nth-child(even){background:var(--row-alt)}
 td .cell{display:flex;gap:6px;align-items:flex-start}
-td .val{flex:1;white-space:pre-wrap;word-break:break-word;min-width:60px}
-td.wide .val{min-width:180px}
+td .val{flex:1;white-space:pre-wrap;overflow-wrap:break-word;min-width:0}
+td.wide .val{min-width:0}
+.table-wrap{overflow:hidden}
+table{table-layout:fixed}
+th{white-space:normal}
+td{overflow-wrap:break-word}
+td .cell{position:relative}
+td .cell .copy{width:22px;height:22px;font-size:11px}
+@media (hover:hover) and (min-width: 900px){
+  td .cell .copy{position:absolute;top:-3px;right:-6px;opacity:0;transition:opacity .12s;background:var(--card)}
+  td:hover .cell .copy, td .cell .copy:focus, td .cell .copy.ok{opacity:1}
+}
+td.act .actbtns{display:flex;flex-direction:column;gap:5px}
+td.act .actbtns .btn{width:100%;padding:5px 4px;font-size:12px;white-space:normal}
+@media (max-width: 899px){
+  thead{display:none}
+  table,tbody,tr,td{display:block;width:100%}
+  tbody tr{border-bottom:1px solid var(--line);padding:6px 0}
+  td{border:none;padding:4px 12px}
+  td[data-label]::before{content:attr(data-label);display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+  td.act .actbtns{flex-direction:row;flex-wrap:wrap}
+  td.act .actbtns .btn{width:auto;padding:7px 12px;font-size:13px}
+}
 .copy{flex:none;border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:7px;width:28px;height:26px;padding:0;font-size:13px}
 .copy.ok{color:var(--ok);border-color:var(--ok)}
 td .pthumbs{display:flex;gap:4px;flex-wrap:wrap}
@@ -210,8 +231,8 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
   <div class="table-wrap">
     <table>
       <thead><tr>
-        <th>Room</th><th>Asset ID</th><th>Fault</th><th>Resolution</th><th>Tags</th>
-        <th>Start</th><th>End</th><th>Mins</th><th>Photos</th><th id="thDone">Completed</th><th></th>
+        <th style="width:10%">Room</th><th style="width:9%">Asset ID</th><th style="width:16%">Fault</th><th style="width:17%">Resolution</th><th style="width:7%">Tags</th>
+        <th style="width:9%">Start</th><th style="width:9%">End</th><th style="width:5%">Mins</th><th style="width:7%">Photos</th><th id="thDone" style="width:9%">Completed</th><th style="width:10%"></th>
       </tr></thead>
       <tbody id="dashBody"></tbody>
     </table>
@@ -384,6 +405,8 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
   <div class="card">
     <h2>Fill AGL</h2>
     <div class="hint" style="margin:0 0 10px">Press <b>→ AGL</b> on a job in the Dashboard. It copies the job and opens a helper window with each value in Agility’s order (click to copy, or load all into Win+V). With the Fill AGL extension installed in Edge, just click <b>⚡ Fill AGL</b> on the Agility form instead.</div>
+    <label class="radio" style="margin:0 0 10px"><input type="checkbox" id="agAutoComplete">
+      <span><b>Mark the job Completed when I press → AGL</b><br><span class="hint">Moves it to the Completed section straight away. Use ↩ Reopen there to undo.</span></span></label>
     <label class="radio" style="margin:0 0 14px"><input type="checkbox" id="agHelper">
       <span><b>Open the copy helper window when I press → AGL</b><br><span class="hint">Turn off if you use the ⚡ Fill AGL button and don’t need the copy-paste window. → AGL still copies the job.</span></span></label>
     <div class="field">
@@ -453,7 +476,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 
 <script>
 (async () => {
-const APP_VERSION = '2.9.1';
+const APP_VERSION = '2.10.0';
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -471,7 +494,7 @@ const DEFAULT_SETTINGS = {
   ghOwner: '', ghRepo: 'repair-logs', ghBranch: 'main', ghFolder: '',
   appRepo: 'repair-logger', appBranch: 'main', appPath: 'index.html',
   agAsset: 'Equipment, Reported Equipment', agAssetTag: 'MES Asset Tag Number, #598710, >Additional Comments', agResponse: 'Response Date/Time', agResponseMins: '5', agFault: 'Additional Comments', agResolution: 'Comments',
-  agStart: 'Please enter your request details here', agEnd: 'Completion Date', agDecouple: 'Decouple Asset?', agRoom: 'Room Number', agRoomUncheck: 'Use my default room for this request', agRoomPrefix: '%', agHelper: true, agWaitRoom: '2', agWaitDecouple: '2', agWaitEquipment: '3', agWaitDropdown: '2', agWaitMes: '5', agWaitFields: '8',
+  agStart: 'Please enter your request details here', agEnd: 'Completion Date', agDecouple: 'Decouple Asset?', agRoom: 'Room Number', agRoomUncheck: 'Use my default room for this request', agRoomPrefix: '%', agHelper: true, agAutoComplete: true, agWaitRoom: '2', agWaitDecouple: '2', agWaitEquipment: '3', agWaitDropdown: '2', agWaitMes: '5', agWaitFields: '8',
   agTriage: 'Medical Equipment Repair - Portable Equipment\nGeneral equipment\nDevice CAN still be used\nCleaning IS NOT required prior to repair\nNO immediate health and safety risk to patients or property', agDelay: '2',
   odTenant: 'common',
   shareFile: 'Job_{asset}_{yyyy}-{MM}-{dd}.csv'
@@ -1262,10 +1285,10 @@ function copyBtn(text){
   };
   return b;
 }
-function cell(text, wide){
+function cell(text, wide, display){
   const td=document.createElement('td'); if(wide) td.className='wide';
   const d=document.createElement('div'); d.className='cell';
-  const v=document.createElement('div'); v.className='val'; v.textContent=text??'';
+  const v=document.createElement('div'); v.className='val'; v.textContent=display ?? text ?? '';
   d.appendChild(v); if(text!=null && text!=='') d.appendChild(copyBtn(String(text)));
   td.appendChild(d); return td;
 }
@@ -1490,7 +1513,14 @@ async function sendToAgility(j){
       if(blob) download(new File([blob], `${j.asset}_${name.split('_').pop()}`, {type:'image/jpeg'}));
     }
   }
-  if(!j.agilityAt){ await updateJob(j, {agilityAt: localInput(new Date()).replace('T',' ')}); renderDash(); }
+  const now = localInput(new Date()).replace('T',' ');
+  const changes = {};
+  if(!j.agilityAt) changes.agilityAt = now;
+  if(settings.agAutoComplete !== false && j.status !== 'completed'){ changes.status = 'completed'; changes.completedAt = now; }
+  if(Object.keys(changes).length){
+    const ok = await updateJob(j, changes); renderDash();
+    if(ok && changes.status) toast(`${j.asset} moved to Completed (↩ Reopen there to undo)`);
+  }
 }
 
 // ---------- Fill AGL Tampermonkey script, stored encrypted in the private repository ----------
@@ -1567,6 +1597,7 @@ async function checkCore(){
   try{ const {ver} = await loadScript(); extStatus('🔒 Tampermonkey script '+ver+' is in your private repository.', 'ok'); }
   catch(e){ extStatus(e.message, 'warn'); }
 }
+const dcell = v => { const t = fmt(v); return cell(t, false, t.replace(/^(\S+) /, '$1\n')); };
 async function renderDash(){
   const q = $('dashSearch').value.trim().toLowerCase();
   const open = dashJobs.filter(j=>j.status!=='completed'), done = dashJobs.filter(j=>j.status==='completed');
@@ -1579,20 +1610,21 @@ async function renderDash(){
   for(const j of rows){
     const tr=document.createElement('tr');
     tr.append(cell(j.room||''), cell(j.asset), cell(j.fault,true), cell(j.resolution,true), cell((j.tags||[]).join(' ')),
-      cell(fmt(j.start)), cell(fmt(j.end)), cell(j.durationMin));
+      dcell(j.start), dcell(j.end), cell(j.durationMin));
     tr.append(await photoCell(j));
-    const tdDone = cell(fmt(j.completedAt)); if(dashView!=='completed') tdDone.classList.add('hidden'); tr.append(tdDone);
-    const act=document.createElement('td'); act.style.whiteSpace='nowrap';
+    const tdDone = dcell(j.completedAt); if(dashView!=='completed') tdDone.classList.add('hidden'); tr.append(tdDone);
+    const act=document.createElement('td'); act.className='act'; const actb=document.createElement('div'); actb.className='actbtns'; act.appendChild(actb);
     const b=document.createElement('button'); b.type='button'; b.className='btn small'+(dashView==='completed'?'':' primary');
     b.textContent = dashView==='completed' ? '↩ Reopen' : '✓ Complete';
     b.onclick = () => { b.disabled=true; setStatus(j, dashView==='completed' ? 'open' : 'completed'); };
-    const cr=document.createElement('button'); cr.type='button'; cr.className='btn small'; cr.textContent='Copy row'; cr.style.marginLeft='6px';
+    const cr=document.createElement('button'); cr.type='button'; cr.className='btn small'; cr.textContent='Copy row';
     cr.onclick = () => { copyBtn([j.room||'',j.asset,j.fault,j.resolution,(j.tags||[]).join(' '),fmt(j.start),fmt(j.end),j.durationMin].join('\t')).click(); toast('Row copied'); };
-    const ag=document.createElement('button'); ag.type='button'; ag.className='btn small'; ag.style.marginLeft='6px';
+    const ag=document.createElement('button'); ag.type='button'; ag.className='btn small';
     ag.textContent = j.agilityAt ? '✓ AGL' : '→ AGL';
     ag.title = (j.agilityAt ? 'Opened for Agility '+fmt(j.agilityAt)+'. ' : '')+'Open the AGL helper: copy each value into the Agility form';
     ag.onclick = () => sendToAgility(j);
-    act.append(b, ag, cr); tr.append(act);
+    actb.append(b, ag, cr); tr.append(act);
+    ['Room','Asset ID','Fault','Resolution','Tags','Start','End','Mins','Photos','Completed'].forEach((l,i) => tr.children[i] && tr.children[i].setAttribute('data-label', l));
     body.appendChild(tr);
   }
 }
@@ -1628,6 +1660,8 @@ function bindSettings(){
   $('signOutBtn').onclick = () => { store.set('token',null); updateOdStatus(); toast('Signed out'); };
   bindGitHubSettings();
   roomPlaceholder(); $('defaultRoom').addEventListener('change', roomPlaceholder);
+  $('agAutoComplete').checked = settings.agAutoComplete !== false;
+  $('agAutoComplete').onchange = () => { settings.agAutoComplete = $('agAutoComplete').checked; saveSettings(); };
   $('agHelper').checked = settings.agHelper !== false;
   $('agHelper').onchange = () => { settings.agHelper = $('agHelper').checked; saveSettings(); toast(settings.agHelper ? 'Copy helper on' : 'Copy helper off'); };
   $('upScriptBtn').onclick = () => { if(!coreReady()) return; $('scriptFile').click(); };
@@ -1646,8 +1680,8 @@ function bindSettings(){
     saveSettings(); toast('Agility fields reset');
   };
   $('setupLinkBtn').onclick = async () => {
-    const {defaultRoom, mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom, agRoomUncheck, agRoomPrefix, agTriage, agAssetTag, agResponse, agResponseMins, agWaitRoom, agWaitDecouple, agWaitEquipment, agWaitDropdown, agWaitMes, agWaitFields, agHelper} = settings;
-    const enc = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({defaultRoom, mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom, agRoomUncheck, agRoomPrefix, agTriage, agAssetTag, agResponse, agResponseMins, agWaitRoom, agWaitDecouple, agWaitEquipment, agWaitDropdown, agWaitMes, agWaitFields, agHelper})))));
+    const {defaultRoom, mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom, agRoomUncheck, agRoomPrefix, agTriage, agAssetTag, agResponse, agResponseMins, agWaitRoom, agWaitDecouple, agWaitEquipment, agWaitDropdown, agWaitMes, agWaitFields, agHelper, agAutoComplete} = settings;
+    const enc = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({defaultRoom, mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom, agRoomUncheck, agRoomPrefix, agTriage, agAssetTag, agResponse, agResponseMins, agWaitRoom, agWaitDecouple, agWaitEquipment, agWaitDropdown, agWaitMes, agWaitFields, agHelper, agAutoComplete})))));
     const link = redirectUri+'#cfg='+enc;
     try{ await navigator.clipboard.writeText(link); toast('Setup link copied'); }catch{ prompt('Copy this link:', link); }
   };
