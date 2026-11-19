@@ -385,6 +385,10 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
         <button class="btn" id="upCoreBtn" type="button">⬆ Upload extension code…</button>
         <button class="btn" id="dlCoreBtn" type="button">⬇ Download extension code (.js)</button>
       </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" id="dlUserScriptBtn" type="button">⬇ Download Tampermonkey script</button>
+      </div>
+      <div class="hint"><b>If Developer mode is greyed out</b> in <code>edge://extensions</code>: install <b>Tampermonkey</b> from the Edge Add-ons store (if your PC allows it), then in <code>edge://extensions</code> › Tampermonkey › <b>Details</b> turn on <b>Allow user scripts</b> if you see it. Open the Tampermonkey icon › <b>Create a new script</b>, delete what’s there, paste the contents of the downloaded <code>fill-agl.user.js</code> (open it in Notepad) and press Ctrl+S. The ⚡ Fill AGL button then appears on Agility pages.</div>
       <input type="file" id="coreFile" accept=".js,text/javascript" class="hidden">
       <div class="status" id="extStatus"></div>
       <div class="hint">To install the download:
@@ -423,7 +427,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 
 <script>
 (async () => {
-const APP_VERSION = '2.0.1';
+const APP_VERSION = '2.1.0';
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -1489,6 +1493,20 @@ function extensionContentScript(core){
 })();
 `;
 }
+function userScript(core){
+  return `// ==UserScript==
+// @name         Fill AGL (Repair Logger)
+// @namespace    repair-logger
+// @version      ${core.ver}
+// @description  Adds a Fill AGL button to Agility forms that fills fields from a job copied in Repair Logger. Never submits the form.
+// @match        *://agility/*
+// @match        *://agility.*/*
+// @grant        none
+// @run-at       document-idle
+// @noframes
+// ==/UserScript==
+` + extensionContentScript(core);
+}
 async function extensionIcon(n){
   const c = document.createElement('canvas'); c.width = c.height = n;
   const g = c.getContext('2d'), r = n/5, k = n/48;
@@ -1585,6 +1603,15 @@ function bindSettings(){
   bindGitHubSettings();
   $('dlExtBtn').onclick = () => downloadExtension().catch(e => extStatus('Could not build the extension: '+e.message, 'err'));
   $('upCoreBtn').onclick = () => { if(!coreReady()) return; $('coreFile').click(); };
+  $('dlUserScriptBtn').onclick = async () => {
+    if(!coreReady()) return;
+    extStatus('Fetching extension code from your private repository…');
+    try{
+      const core = await loadCore();
+      download(new File([userScript(core)], 'fill-agl.user.js', {type:'text/plain'}));
+      extStatus('✓ Downloaded fill-agl.user.js ('+core.ver+'). Paste it into a new Tampermonkey script.', 'ok');
+    }catch(e){ extStatus('Could not download: '+e.message, 'err'); }
+  };
   $('dlCoreBtn').onclick = async () => {
     if(!coreReady()) return;
     extStatus('Fetching extension code from your private repository…');
