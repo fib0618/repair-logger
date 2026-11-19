@@ -554,8 +554,8 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 <script type="text/plain" id="lockedScript"></script>
 <script>
 (async () => {
-const APP_VERSION = '2.22.4';
-const FILL_LATEST = '4.2.0'; // the Fill AGL / Fill EAM script this app expects
+const APP_VERSION = '2.23.1';
+const FILL_LATEST = '4.3.0'; // the Fill AGL / Fill EAM script this app expects
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -1644,9 +1644,15 @@ async function autoStart(mode){
   }
   const ids = waitingJobs().map(j => j.id);
   if(mode==='run' && !ids.length){ renderAutoBtns(); autoStatus('No jobs are waiting for Agility.'+skippedNote()); return; } // nothing to do: don't open Agility
-  if(!openAgl()) return;
+  const first = mode==='run' ? waitingJobs().find(j => ids.includes(j.id)) : waitingJobs()[0];
+  const jobMsg = j => ({text:agilityPayload(j), id:j.id+(j.aglResend ? '~resend'+j.aglResend : ''), asset:j.asset, url:settings.agAutoUrl || DEFAULT_SETTINGS.agAutoUrl, add:settings.agAddLabel || DEFAULT_SETTINGS.agAddLabel});
+  const base = (settings.agAutoUrl || DEFAULT_SETTINGS.agAutoUrl).replace(/#.*$/,'');
+  const url = first ? base+'#rljob='+encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(jobMsg(first)))))) : (settings.agAutoUrl || DEFAULT_SETTINGS.agAutoUrl);
+  aglWin = window.open(url, 'rl-agility');
+  if(!aglWin){ toast('Edge blocked the Agility tab. Allow pop-ups for Repair Logger (icon in the address bar), then press again.'); return; }
   autoMode = mode; autoCurrent = null; autoDone = 0; autoStopped = 0; autoSent = 0;
   runIds = mode==='run' ? ids : null;
+  if(first){ autoCurrent = first; autoStarted = Date.now(); autoSent = 1; await updateJob(first, {agilityAt: localInput(new Date()).replace('T',' ')}); renderDash(); }
   clearInterval(autoPoll);
   autoPoll = setInterval(async () => {
     if(autoMode==='off') return;
@@ -1654,13 +1660,13 @@ async function autoStart(mode){
     if(autoMode==='auto' && !autoCurrent){ await loadDashboard(); }
     autoWake();
   }, (autoMode==='auto' ? (parseFloat(settings.agAutoEvery)||3) : 1) * 60000);
-  autoStatus(mode==='run' ? 'Starting: '+runIds.length+' job(s)…' : 'Auto log on · starting…');
+  autoStatus(first ? 'Logging '+first.asset+' in Agility…'+(mode==='run' ? ' (1 of '+runIds.length+')' : '') : (mode==='run' ? 'Starting…' : 'Auto log on · waiting for new jobs.'+skippedNote()));
   renderAutoBtns();
   setTimeout(autoWake, 2500);
   aglAnswered = false;
   setTimeout(() => {
     if(autoMode!=='off' && !aglAnswered && (!aglWin || !aglWin.closed))
-      autoStatus('The Agility tab isn’t answering. Check: logged in to Agility, and Tampermonkey has Fill AGL '+FILL_LATEST+' (Dashboard › Fill AGL shows the version). Then press the button again.');
+      autoStatus('The Agility tab isn’t talking back. If it shows an orange ⚡ Auto AGL box, it is still working: after it presses Complete, switch back here and the WO# is added. If there is no orange box: check you are logged in to Agility and Tampermonkey has Fill AGL '+FILL_LATEST+'.');
   }, 20000);
 }
 $('autoLogBtn').onclick = () => autoMode==='auto' ? autoStop(null) : autoStart('auto');
@@ -1668,6 +1674,7 @@ $('runAglBtn').onclick = () => autoMode==='run' ? autoStop('stopped by you') : a
 window.addEventListener('message', async e => {
   if(e.origin !== aglOrigin() || !e.data || !e.data.rl) return;
   const d = e.data;
+  if(d.rl==='agl-progress'){ aglAnswered = true; autoStatus('Agility: '+d.text); return; }
   if(d.rl==='agl-hello'){
     aglAnswered = true; aglVer = d.v || '';
     if(!d.v || d.v < FILL_LATEST) toast('The Agility tab has an older Fill AGL script ('+(d.v||'before 4.2')+'). Paste '+FILL_LATEST+' into Tampermonkey.');
@@ -1732,6 +1739,7 @@ async function checkWoClipboard(manual){
     const d = JSON.parse(t.slice(16));
     const j = await applyAglWo(d, manual);
     if(j) try{ await navigator.clipboard.writeText(String(d.wo)); }catch{}
+    if(j && autoCurrent && (autoCurrent.id===j.id || autoCurrent.asset===j.asset)){ autoCurrent = null; autoDone++; aglAnswered = true; autoStatus(j.asset+': AGL WO# '+d.wo+' saved.'+(autoMode==='run' && autoQueue().length ? ' The Agility tab can’t talk back, so press ▶ Run AGL again for the next job.' : '')); renderAutoBtns(); if(autoMode==='run' && !autoQueue().length) autoStop(null); }
   }catch(e){ if(manual) toast('Could not add the WO#: '+e.message); }
   finally{ woChecking = false; }
 }
