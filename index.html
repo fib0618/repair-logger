@@ -383,13 +383,13 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
       <div class="row">
         <button class="btn primary" id="dlExtBtn" type="button">⬇ Download Edge extension</button>
         <button class="btn" id="upCoreBtn" type="button">⬆ Upload extension code…</button>
-        <button class="btn" id="dlCoreBtn" type="button">⬇ Download extension code (.js)</button>
+        <button class="btn" id="dlCoreBtn" type="button">⬇ Download extension code (.txt)</button>
       </div>
       <div class="row" style="margin-top:8px">
         <button class="btn" id="dlUserScriptBtn" type="button">⬇ Download Tampermonkey script</button>
       </div>
-      <div class="hint"><b>If Developer mode is greyed out</b> in <code>edge://extensions</code>: install <b>Tampermonkey</b> from the Edge Add-ons store (if your PC allows it), then in <code>edge://extensions</code> › Tampermonkey › <b>Details</b> turn on <b>Allow user scripts</b> if you see it. Open the Tampermonkey icon › <b>Create a new script</b>, delete what’s there, paste the contents of the downloaded <code>fill-agl.user.js</code> (open it in Notepad) and press Ctrl+S. The ⚡ Fill AGL button then appears on Agility pages.</div>
-      <input type="file" id="coreFile" accept=".js,text/javascript" class="hidden">
+      <div class="hint"><b>If Developer mode is greyed out</b> in <code>edge://extensions</code>: install <b>Tampermonkey</b> from the Edge Add-ons store (if your PC allows it), then in <code>edge://extensions</code> › Tampermonkey › <b>Details</b> turn on <b>Allow user scripts</b> if you see it. Open the Tampermonkey icon › <b>Create a new script</b>, delete what’s there, paste the contents of the downloaded <code>fill-agl-tampermonkey.txt</code> (double-click opens it in Notepad) and press Ctrl+S. The ⚡ Fill AGL button then appears on Agility pages.</div>
+      <input type="file" id="coreFile" accept=".js,.txt,text/javascript,text/plain" class="hidden">
       <div class="status" id="extStatus"></div>
       <div class="hint">To install the download:
         <ol style="margin:6px 0 0;padding-left:20px">
@@ -427,7 +427,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 
 <script>
 (async () => {
-const APP_VERSION = '2.1.0';
+const APP_VERSION = '2.2.1';
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -1308,39 +1308,57 @@ function aglItems(j){
     {label:first('agStart')||'Response Date/Time', also:others('agStart'), value:fmt(j.start), note:'only on some forms'},
     {label:first('agEnd')||'Completion Date', also:others('agEnd'), value:fmt(j.end)},
     {label:first('agResolution')||'Comments', also:others('agResolution'), value:j.resolution||''},
-  ].filter(i => i.value);
+  ];
 }
 function aglHelperHtml(j){
   const data = JSON.stringify({asset:j.asset, decouple:(settings.agDecouple||'').trim(), items:aglItems(j), payload:agilityPayload(j)}).replace(/</g,'\\u003c');
   return `<!doctype html><html><head><meta charset="utf-8"><title>AGL · ${j.asset.replace(/[<&]/g,'')}</title>
 <style>
-:root{--bg:#f4f5f7;--card:#fff;--text:#16181d;--muted:#6b7280;--line:#e2e5ea;--accent:#0a66d8;--ok:#15803d}
-@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#181b21;--text:#eceef2;--muted:#9aa1ad;--line:#2a2f38;--accent:#3b8cff;--ok:#4ade80}}
+:root{--bg:#f4f5f7;--card:#fff;--text:#16181d;--muted:#6b7280;--line:#e2e5ea;--accent:#0a66d8;--ok:#15803d;--warn:#b45309}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#181b21;--text:#eceef2;--muted:#9aa1ad;--line:#2a2f38;--accent:#3b8cff;--ok:#4ade80;--warn:#fbbf24}}
 *{box-sizing:border-box}body{margin:0;padding:12px;background:var(--bg);color:var(--text);font:14px/1.4 "Segoe UI",system-ui,sans-serif}
-h1{font-size:16px;margin:0 0 2px}.sub{color:var(--muted);font-size:12px;margin-bottom:10px}
-.step{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 10px;margin-bottom:8px;cursor:pointer;display:flex;gap:10px;align-items:flex-start}
-.step.cur{border:2px solid var(--accent);padding:8px 9px}.step.done{opacity:.6}
-.num{flex:none;width:24px;height:24px;border-radius:50%;background:var(--line);display:grid;place-items:center;font-size:12px;font-weight:700}
+h1{font-size:16px;margin:0 0 8px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px}
+.box h2{font-size:13px;margin:0 0 6px}.box ol{margin:4px 0 0;padding-left:18px;font-size:12px;color:var(--muted)}
+.big{width:100%;padding:10px;border-radius:9px;border:1px solid var(--accent);background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer}
+.big:disabled{opacity:.6}
+.ready{border:2px solid var(--accent);border-radius:10px;padding:8px 10px;margin-bottom:8px;background:var(--card)}
+.ready .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.ready .v{font-weight:700;white-space:pre-wrap;word-break:break-word}
+.step{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 9px;margin-bottom:6px;cursor:pointer;display:flex;gap:9px;align-items:flex-start}
+.step.cur{border:2px solid var(--accent);padding:6px 8px}.step.done{opacity:.55}.step.empty{opacity:.5;cursor:default}
+.num{flex:none;width:22px;height:22px;border-radius:50%;background:var(--line);display:grid;place-items:center;font-size:11px;font-weight:700}
 .cur .num{background:var(--accent);color:#fff}.done .num{background:var(--ok);color:#fff}
-.main{flex:1;min-width:0}.lab{font-weight:700}.also{color:var(--muted);font-size:11px}
-.val{white-space:pre-wrap;word-break:break-word;font-size:13px;margin-top:3px;max-height:4.2em;overflow:hidden}
-.cp{flex:none;border:1px solid var(--accent);background:var(--card);color:var(--accent);border-radius:7px;padding:5px 10px;font:inherit;font-size:13px;cursor:pointer}
-.done .cp{border-color:var(--ok);color:var(--ok)}
-.tip{background:#fff7e6;color:#7a4b00;border-radius:8px;padding:7px 9px;font-size:12px;margin-bottom:8px}
+.main{flex:1;min-width:0}.lab{font-weight:700;font-size:13px}.also{color:var(--muted);font-size:11px}
+.val{white-space:pre-wrap;word-break:break-word;font-size:13px;margin-top:2px;max-height:4.2em;overflow:hidden}
+.empty .val{font-style:italic;color:var(--warn)}
+.tip{background:#fff7e6;color:#7a4b00;border-radius:8px;padding:7px 9px;font-size:12px;margin-bottom:10px}
 @media (prefers-color-scheme:dark){.tip{background:#3a2c10;color:#ffd48a}}
-.big{width:100%;padding:10px;border-radius:9px;border:1px solid var(--accent);background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer;margin-top:4px}
 .status{font-size:12px;color:var(--muted);margin-top:6px;min-height:1.4em}
 a{color:var(--accent);font-size:12px}
 </style></head><body>
-<h1 id="t"></h1><div class="sub">Click a step to copy it, then paste into Agility (Ctrl+V). The next step is highlighted.</div>
+<h1 id="t"></h1>
 <div id="dec" class="tip" hidden></div>
+<div class="box">
+  <h2>Fastest: copy everything at once</h2>
+  <button class="big" id="hist">📋 Copy all fields (Win+V)</button>
+  <ol><li>Click a field in Agility.</li><li>Press <b>Win+V</b> and click its value. Values are listed top to bottom in form order.</li><li>Next field, Win+V again.</li></ol>
+  <div class="status" id="hst"></div>
+</div>
+<div class="box">
+  <h2>Or one at a time: the next value is copied automatically</h2>
+  <div class="ready" id="ready"><div class="k">Ready to paste (Ctrl+V)</div><div class="v" id="rv"></div></div>
+  <div style="font-size:12px;color:var(--muted)">Paste in Agility, then click anywhere in this window. The next value is copied for you.</div>
+</div>
 <div id="list"></div>
-<button class="big" id="hist">Load all into Win+V clipboard history</button>
 <div class="status" id="st"></div>
-<div style="margin-top:8px"><a href="#" id="pl">Copy job again for the ⚡ Fill AGL extension</a></div>
+<div style="margin-top:6px"><a href="#" id="pl">Copy job for the ⚡ Fill AGL extension</a></div>
 <script>
 const D = ${data};
-let cur = 0; const done = new Set();
+const items = D.items;
+const has = i => !!(items[i] && items[i].value);
+let cur = items.findIndex((x,i)=>has(i)); if(cur<0) cur = 0;
+let armed = false; const done = new Set();
 document.getElementById('t').textContent = 'AGL · ' + D.asset;
 if(D.decouple){ const d=document.getElementById('dec'); d.hidden=false; d.textContent = 'First tick “' + D.decouple + '” in Agility so you can type in the Equipment box.'; }
 async function copy(t){
@@ -1348,43 +1366,50 @@ async function copy(t){
   catch(e){ const a=document.createElement('textarea'); a.value=t; document.body.appendChild(a); a.select(); const ok=document.execCommand('copy'); a.remove(); return ok; }
 }
 const st = m => document.getElementById('st').textContent = m;
+const nextFrom = i => { for(let k=i+1;k<items.length;k++) if(has(k)) return k; return -1; };
+async function arm(i){
+  if(i<0 || !has(i)){ armed=false; document.getElementById('rv').textContent = '✓ All done. Check the form and press Complete.'; render(); return; }
+  cur = i;
+  armed = await copy(items[i].value);
+  document.getElementById('rv').textContent = armed ? items[i].label + ': ' + items[i].value : 'Click here to copy ' + items[i].label;
+  render();
+}
 function render(){
   const L = document.getElementById('list'); L.innerHTML = '';
-  D.items.forEach((it,i) => {
-    const el = document.createElement('div'); el.className = 'step' + (i===cur?' cur':'') + (done.has(i)?' done':'');
-    el.innerHTML = '<div class="num"></div><div class="main"><div class="lab"></div><div class="also"></div><div class="val"></div></div><button class="cp"></button>';
+  items.forEach((it,i) => {
+    const e = !has(i);
+    const el = document.createElement('div'); el.className = 'step' + (e?' empty':'') + (i===cur&&!e?' cur':'') + (done.has(i)?' done':'');
+    el.innerHTML = '<div class="num"></div><div class="main"><div class="lab"></div><div class="also"></div><div class="val"></div></div>';
     el.querySelector('.num').textContent = done.has(i) ? '✓' : i+1;
     el.querySelector('.lab').textContent = it.label;
     el.querySelector('.also').textContent = [it.also ? 'or ' + it.also : '', it.note||''].filter(Boolean).join(' · ');
-    el.querySelector('.val').textContent = it.value;
-    el.querySelector('.cp').textContent = done.has(i) ? 'Copied' : 'Copy';
-    el.onclick = async () => {
-      if(await copy(it.value)){ done.add(i); st('Copied ' + it.label + '. Paste it in Agility with Ctrl+V.'); }
-      else st('Could not copy. Select the text and press Ctrl+C.');
-      cur = Math.min(i+1, D.items.length-1); render();
-    };
+    el.querySelector('.val').textContent = e ? 'not recorded, skipped' : it.value;
+    if(!e) el.onclick = ev => { ev.stopPropagation(); done.delete(i); arm(i); st('Copied ' + it.label + '.'); };
     L.appendChild(el);
   });
 }
-render();
-document.addEventListener('keydown', e => { if(e.key==='Enter' || e.key===' '){ e.preventDefault(); document.querySelectorAll('.step')[cur]?.click(); } });
+// Leaving this window (to paste in Agility) marks the ready value as used; coming back copies the next one.
+window.addEventListener('blur', () => { if(armed && has(cur)){ done.add(cur); armed = false; cur = nextFrom(cur); render(); } });
+window.addEventListener('focus', () => { if(!armed) arm(cur); });
+arm(cur);
 document.getElementById('hist').onclick = async () => {
   const b = document.getElementById('hist'); b.disabled = true;
+  const vals = items.filter((x,i)=>has(i));
   // copy last-to-first so Win+V lists them in form order (newest at the top)
-  for(let i=D.items.length-1; i>=0; i--){
-    st('Loading ' + (D.items.length-i) + ' of ' + D.items.length + '… keep this window open');
-    await copy(D.items[i].value);
+  for(let k=vals.length-1; k>=0; k--){
+    document.getElementById('hst').textContent = 'Copying ' + (vals.length-k) + ' of ' + vals.length + '… keep this window open';
+    await copy(vals[k].value);
     await new Promise(r => setTimeout(r, 900));
   }
-  b.disabled = false;
-  st('Done. In Agility click a field and press Win+V, then pick its value. Empty list? Press Win+V once and click "Turn on" (Windows clipboard history), then try again.');
+  b.disabled = false; armed = false;
+  document.getElementById('hst').textContent = '✓ All ' + vals.length + ' copied. In Agility: click a field, press Win+V, pick its value. Nothing in the Win+V list? Press Win+V once and click “Turn on”, then copy again.';
 };
-document.getElementById('pl').onclick = async e => { e.preventDefault(); await copy(D.payload); st('Copied. Click ⚡ Fill AGL on the Agility form.'); };
+document.getElementById('pl').onclick = async e => { e.preventDefault(); e.stopPropagation(); await copy(D.payload); armed = false; st('Copied. Click ⚡ Fill AGL on the Agility form.'); };
 <\/script></body></html>`;
 }
 function openAglHelper(j){
   const html = aglHelperHtml(j);
-  const w = window.open('', 'agl-helper', 'width=420,height=680,left='+Math.max(0, screen.availWidth-440)+',top=40');
+  const w = window.open('', 'agl-helper', 'width=420,height=820,left='+Math.max(0, screen.availWidth-440)+',top=40');
   if(w){ w.document.open(); w.document.write(html); w.document.close(); w.focus(); return; }
   // Popup blocked: show it inside this page instead
   document.getElementById('aglOverlay')?.remove();
@@ -1608,8 +1633,8 @@ function bindSettings(){
     extStatus('Fetching extension code from your private repository…');
     try{
       const core = await loadCore();
-      download(new File([userScript(core)], 'fill-agl.user.js', {type:'text/plain'}));
-      extStatus('✓ Downloaded fill-agl.user.js ('+core.ver+'). Paste it into a new Tampermonkey script.', 'ok');
+      download(new File([userScript(core)], 'fill-agl-tampermonkey.txt', {type:'text/plain'}));
+      extStatus('✓ Downloaded fill-agl-tampermonkey.txt ('+core.ver+'). Open it (Notepad), copy all, and paste into a new Tampermonkey script.', 'ok');
     }catch(e){ extStatus('Could not download: '+e.message, 'err'); }
   };
   $('dlCoreBtn').onclick = async () => {
@@ -1617,8 +1642,8 @@ function bindSettings(){
     extStatus('Fetching extension code from your private repository…');
     try{
       const core = await loadCore();
-      download(new File([core.src], 'fill-agl-core.js', {type:'text/javascript'}));
-      extStatus('✓ Downloaded fill-agl-core.js ('+core.ver+'). Keep it private.', 'ok');
+      download(new File([core.src], 'fill-agl-core.txt', {type:'text/plain'}));
+      extStatus('✓ Downloaded fill-agl-core.txt ('+core.ver+'). Keep it private.', 'ok');
     }catch(e){ extStatus('Could not download: '+e.message, 'err'); }
   };
   $('coreFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value=''; if(f) uploadCore(f); });
