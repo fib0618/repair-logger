@@ -401,6 +401,11 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
         When you get a new <code>fill-agl-core.js</code>, upload it here, download the extension again, unzip over the same folder and click ↻ on the extension in <code>edge://extensions</code>.</div>
     </div>
     <div class="field">
+      <label for="agRoomUncheck">Extension: untick this box before the room</label>
+      <input id="agRoomUncheck" placeholder="Use my default room for this request">
+      <div class="hint">Unticked only when the job has a room number, so the Room Number box can be typed in. Leave empty to skip.</div>
+    </div>
+    <div class="field">
       <label for="agDecouple">Extension: tick this box first</label>
       <input id="agDecouple" placeholder="Decouple Asset?">
       <div class="hint">Ticked before filling so the Equipment box can be typed in. Leave empty to skip.</div>
@@ -409,9 +414,12 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
     <div class="hint" style="margin:0 0 8px">Type the field name exactly as it appears on the Agility form. Separate several names with commas to fill more than one field. Leave a box empty to skip it.</div>
     <div class="field"><label for="agAsset" style="font-weight:400">Asset ID →</label><input id="agAsset" placeholder="Equipment, Reported Equipment, MES Asset Tag Number"></div>
     <div class="field"><label for="agRoom" style="font-weight:400">Room Number →</label><input id="agRoom" placeholder="Room Number"></div>
+    <div class="field"><label for="agRoomPrefix" style="font-weight:400">Room search prefix</label><input id="agRoomPrefix" placeholder="%" style="max-width:120px">
+      <div class="hint">Typed before the room code (e.g. <code>%B-L10539</code>) so Agility searches; the matching result is then picked from the list.</div></div>
     <div class="field"><label for="agFault" style="font-weight:400">Fault →</label><input id="agFault" placeholder="Additional Comments"></div>
     <div class="field"><label for="agResolution" style="font-weight:400">Resolution →</label><input id="agResolution" placeholder="Comments"></div>
-    <div class="field"><label for="agStart" style="font-weight:400">Start time →</label><input id="agStart" placeholder="Response Date/Time"></div>
+    <div class="field"><label for="agStart" style="font-weight:400">Start time →</label><input id="agStart" placeholder="Please enter your request details here, Response Date/Time">
+      <div class="hint">A section heading works too: the first box after it is filled (the date under “Please enter your request details here”).</div></div>
     <div class="field"><label for="agEnd" style="font-weight:400">End time →</label><input id="agEnd" placeholder="Completion Date"></div>
     <button class="btn small" id="agResetBtn" type="button">Reset to defaults</button>
   </div>
@@ -427,7 +435,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 
 <script>
 (async () => {
-const APP_VERSION = '2.2.1';
+const APP_VERSION = '2.4.1';
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -444,7 +452,7 @@ const DEFAULT_SETTINGS = {
   ghOwner: '', ghRepo: 'repair-logs', ghBranch: 'main', ghFolder: '',
   appRepo: 'repair-logger', appBranch: 'main', appPath: 'index.html',
   agAsset: 'Equipment, Reported Equipment, MES Asset Tag Number', agFault: 'Additional Comments', agResolution: 'Comments',
-  agStart: 'Response Date/Time', agEnd: 'Completion Date', agDecouple: 'Decouple Asset?', agRoom: 'Room Number',
+  agStart: 'Please enter your request details here, Response Date/Time', agEnd: 'Completion Date', agDecouple: 'Decouple Asset?', agRoom: 'Room Number', agRoomUncheck: 'Use my default room for this request', agRoomPrefix: '%',
   odTenant: 'common',
   shareFile: 'Job_{asset}_{yyyy}-{MM}-{dd}.csv'
 };
@@ -461,6 +469,7 @@ const DEFAULT_SETTINGS = {
 })();
 let settings = Object.assign({}, DEFAULT_SETTINGS, store.get('settings', {}));
 if(settings.agAsset==='MES Asset Tag Number, Reported Equipment') settings.agAsset = DEFAULT_SETTINGS.agAsset;
+if(settings.agStart==='Response Date/Time') settings.agStart = DEFAULT_SETTINGS.agStart;
 let logs = store.get('logs', []);
 logs.forEach(l => { l.status ||= 'open'; l.photos ||= []; });
 const saveSettings = () => store.set('settings', settings);
@@ -1292,26 +1301,26 @@ async function setStatus(j, status){
 const labelsOf = k => (settings[k]||'').split(',').map(x=>x.trim()).filter(Boolean);
 function agilityPayload(j){
   const fields = [];
-  const add = (k, value, iso) => labelsOf(k).forEach(label => fields.push(Object.assign({label, value: value ?? ''}, iso ? {iso} : {}, k==='agAsset' ? {asset:true} : {})));
-  add('agRoom', j.room); add('agAsset', j.asset); add('agFault', j.fault); add('agResolution', j.resolution);
+  const add = (k, value, iso) => labelsOf(k).forEach(label => fields.push(Object.assign({label, value: value ?? ''}, iso ? {iso} : {}, k==='agAsset' ? {asset:true} : {}, k==='agRoom' ? {room:true, search:settings.agRoomPrefix||''} : {})));
+  add('agRoom', (j.room||'').replace(/^%+/,'')); add('agAsset', j.asset); add('agFault', j.fault); add('agResolution', j.resolution);
   add('agStart', fmt(j.start), j.start ? j.start.replace(' ','T') : null); add('agEnd', fmt(j.end), j.end ? j.end.replace(' ','T') : null);
-  return 'REPAIRLOGGER:'+JSON.stringify({v:1, asset:j.asset, decouple:(settings.agDecouple||'').trim(), fields});
+  return 'REPAIRLOGGER:'+JSON.stringify({v:1, asset:j.asset, decouple:(settings.agDecouple||'').trim(), uncheck:(settings.agRoomUncheck||'').trim(), fields});
 }
 // AGL helper: a small window beside Agility with each value ready to copy, in form order.
 function aglItems(j){
   const first = k => labelsOf(k)[0] || '';
   const others = k => labelsOf(k).slice(1).join(' / ');
   return [
-    {label:first('agRoom')||'Room Number', also:others('agRoom'), value:j.room||''},
+    {label:first('agRoom')||'Room Number', also:others('agRoom'), value:j.room ? (settings.agRoomPrefix||'')+j.room.replace(/^%+/,'') : '', note:j.room ? 'paste, then pick the room from Agility’s list' : ''},
     {label:first('agAsset')||'Equipment', also:others('agAsset'), value:j.asset||''},
     {label:first('agFault')||'Additional Comments', also:others('agFault'), value:j.fault||''},
-    {label:first('agStart')||'Response Date/Time', also:others('agStart'), value:fmt(j.start), note:'only on some forms'},
-    {label:first('agEnd')||'Completion Date', also:others('agEnd'), value:fmt(j.end)},
+    {label:'Start time', also:'date box under “Please enter your request details here”', value:fmt(j.start)},
+    {label:'End time', also:first('agEnd')||'Completion Date', value:fmt(j.end)},
     {label:first('agResolution')||'Comments', also:others('agResolution'), value:j.resolution||''},
   ];
 }
 function aglHelperHtml(j){
-  const data = JSON.stringify({asset:j.asset, decouple:(settings.agDecouple||'').trim(), items:aglItems(j), payload:agilityPayload(j)}).replace(/</g,'\\u003c');
+  const data = JSON.stringify({asset:j.asset, decouple:(settings.agDecouple||'').trim(), uncheck:(settings.agRoomUncheck||'').trim(), items:aglItems(j), payload:agilityPayload(j)}).replace(/</g,'\\u003c');
   return `<!doctype html><html><head><meta charset="utf-8"><title>AGL · ${j.asset.replace(/[<&]/g,'')}</title>
 <style>
 :root{--bg:#f4f5f7;--card:#fff;--text:#16181d;--muted:#6b7280;--line:#e2e5ea;--accent:#0a66d8;--ok:#15803d;--warn:#b45309}
@@ -1358,9 +1367,9 @@ const D = ${data};
 const items = D.items;
 const has = i => !!(items[i] && items[i].value);
 let cur = items.findIndex((x,i)=>has(i)); if(cur<0) cur = 0;
-let armed = false; const done = new Set();
+let armed = false, started = false; const done = new Set();
 document.getElementById('t').textContent = 'AGL · ' + D.asset;
-if(D.decouple){ const d=document.getElementById('dec'); d.hidden=false; d.textContent = 'First tick “' + D.decouple + '” in Agility so you can type in the Equipment box.'; }
+{ const tips=[]; if(D.uncheck && D.items[0] && D.items[0].value) tips.push('untick “'+D.uncheck+'” (for Room Number)'); if(D.decouple) tips.push('tick “'+D.decouple+'” (for Equipment)'); if(tips.length){ const d=document.getElementById('dec'); d.hidden=false; d.textContent = 'In Agility first ' + tips.join(' and ') + '.'; } }
 async function copy(t){
   try{ await navigator.clipboard.writeText(t); return true; }
   catch(e){ const a=document.createElement('textarea'); a.value=t; document.body.appendChild(a); a.select(); const ok=document.execCommand('copy'); a.remove(); return ok; }
@@ -1384,14 +1393,18 @@ function render(){
     el.querySelector('.lab').textContent = it.label;
     el.querySelector('.also').textContent = [it.also ? 'or ' + it.also : '', it.note||''].filter(Boolean).join(' · ');
     el.querySelector('.val').textContent = e ? 'not recorded, skipped' : it.value;
-    if(!e) el.onclick = ev => { ev.stopPropagation(); done.delete(i); arm(i); st('Copied ' + it.label + '.'); };
+    if(!e) el.onclick = ev => { ev.stopPropagation(); started = true; done.delete(i); arm(i); st('Copied ' + it.label + '.'); };
     L.appendChild(el);
   });
 }
 // Leaving this window (to paste in Agility) marks the ready value as used; coming back copies the next one.
 window.addEventListener('blur', () => { if(armed && has(cur)){ done.add(cur); armed = false; cur = nextFrom(cur); render(); } });
-window.addEventListener('focus', () => { if(!armed) arm(cur); });
-arm(cur);
+window.addEventListener('focus', () => { if(started && !armed) arm(cur); });
+// Nothing is copied until you click here, so the job copied for the Fill AGL extension stays on the clipboard
+document.getElementById('rv').textContent = 'Click here to start (copies ' + (has(cur) ? items[cur].label : 'the first value') + ')';
+document.getElementById('ready').style.cursor = 'pointer';
+document.getElementById('ready').onclick = () => { if(!started){ started = true; arm(cur); } };
+render();
 document.getElementById('hist').onclick = async () => {
   const b = document.getElementById('hist'); b.disabled = true;
   const vals = items.filter((x,i)=>has(i));
@@ -1401,7 +1414,7 @@ document.getElementById('hist').onclick = async () => {
     await copy(vals[k].value);
     await new Promise(r => setTimeout(r, 900));
   }
-  b.disabled = false; armed = false;
+  b.disabled = false; armed = false; started = false;
   document.getElementById('hst').textContent = '✓ All ' + vals.length + ' copied. In Agility: click a field, press Win+V, pick its value. Nothing in the Win+V list? Press Win+V once and click “Turn on”, then copy again.';
 };
 document.getElementById('pl').onclick = async e => { e.preventDefault(); e.stopPropagation(); await copy(D.payload); armed = false; st('Copied. Click ⚡ Fill AGL on the Agility form.'); };
@@ -1615,7 +1628,7 @@ function bindSettings(){
     r.checked = r.value===settings.mode;
     r.onchange = () => { settings.mode=r.value; saveSettings(); showModeSettings(); };
   });
-  ['odFolder','odFile','odClient','odTenant','shareFile','ghOwner','ghRepo','ghBranch','ghFolder','appRepo','appBranch','appPath','agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom'].forEach(k=>{
+  ['odFolder','odFile','odClient','odTenant','shareFile','ghOwner','ghRepo','ghBranch','ghFolder','appRepo','appBranch','appPath','agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom','agRoomUncheck','agRoomPrefix'].forEach(k=>{
     $(k).value = settings[k]||'';
     $(k).addEventListener('change', ()=>{ settings[k]=$(k).value.trim(); saveSettings(); renderSaveLoc(); });
   });
@@ -1648,12 +1661,12 @@ function bindSettings(){
   };
   $('coreFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value=''; if(f) uploadCore(f); });
   $('agResetBtn').onclick = () => {
-    ['agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom'].forEach(k=>{ settings[k]=DEFAULT_SETTINGS[k]; $(k).value=settings[k]; });
+    ['agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom','agRoomUncheck','agRoomPrefix'].forEach(k=>{ settings[k]=DEFAULT_SETTINGS[k]; $(k).value=settings[k]; });
     saveSettings(); toast('Agility fields reset');
   };
   $('setupLinkBtn').onclick = async () => {
-    const {mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom} = settings;
-    const enc = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom})))));
+    const {mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom, agRoomUncheck, agRoomPrefix} = settings;
+    const enc = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom, agRoomUncheck, agRoomPrefix})))));
     const link = redirectUri+'#cfg='+enc;
     try{ await navigator.clipboard.writeText(link); toast('Setup link copied'); }catch{ prompt('Copy this link:', link); }
   };
