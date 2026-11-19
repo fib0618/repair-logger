@@ -60,7 +60,10 @@ button{font:inherit;cursor:pointer}
 .chip.on{background:var(--accent);color:var(--accent-text)}
 .chip .x{margin-left:6px;opacity:.7}
 .hint{color:var(--muted);font-size:13px;margin-top:6px}
-#scanner{display:none;margin-top:10px;border-radius:12px;overflow:hidden}
+#scanner{display:none;margin-top:10px;border-radius:12px;overflow:hidden;position:relative;height:200px}
+#scanner video{width:100%!important;height:200px!important;object-fit:cover}
+#scanner::after{content:'';position:absolute;left:8%;right:8%;top:50%;height:2px;background:rgba(239,68,68,.85);box-shadow:0 0 0 1px rgba(255,255,255,.4);pointer-events:none}
+#scanner #qr-shaded-region{display:none}
 #scanner.on{display:block}
 #toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 20px);transform:translateX(-50%);
   background:#222;color:#fff;padding:10px 16px;border-radius:10px;font-size:15px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90%;text-align:center;z-index:10}
@@ -284,6 +287,8 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
     <div class="hint">Change this under “Save location” below.</div>
   </div>
   <div class="card">
+    <h2>Saving a job</h2>
+    <label class="radio" style="margin:0 0 12px"><input type="checkbox" id="askEam"><span><b>Ask “Log in EAM too?” when I press Save job</b><br><span class="hint">Off: use the “Log in EAM” tick box on the form instead.</span></span></label>
     <h2>Default room</h2>
     <input id="defaultRoom" placeholder="B-L10539" autocapitalize="characters" autocomplete="off">
     <div class="hint">Used when no Room Number is scanned or typed. The job is saved with this room. Leave empty to save jobs without a room.</div>
@@ -439,7 +444,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
       <span><b>Mark the job Completed when I press → AGL</b><br><span class="hint">Usually off: jobs go AGL done (green, WO# captured) → EAM done (purple) → Completed.</span></span></label>
     <div class="field">
       <label>Auto log / Run AGL (Dashboard buttons)</label>
-      <div class="hint" style="margin:0 0 8px">Log Dashboard jobs into Agility by themselves: opens the Agility menu, clicks the button below, runs Fill AGL, presses Complete after the countdown, and saves the WO#. Be logged in to Agility. If Edge blocks the Agility tab, allow pop-ups for Repair Logger.</div>
+      <div class="hint" style="margin:0 0 8px">Log Dashboard jobs into Agility by themselves: opens the Agility menu, clicks the button below, runs Fill AGL, presses Complete after the countdown, and saves the WO#. Be logged in to Agility. If Edge blocks the Agility tab, allow pop-ups for Repair Logger. Agility opens each new request in a pop-up, so also allow pop-ups for <code>https://agility</code> (Edge: <code>edge://settings/content/popups</code> › Allowed › Add).</div>
       <div class="field"><label for="agAutoUrl" style="font-weight:400">Agility menu page</label><input id="agAutoUrl" placeholder="https://agility/Agility/MainMenuDashboard.aspx#" spellcheck="false"></div>
       <div class="field"><label for="agAddLabel" style="font-weight:400">Menu item to open a new request</label><input id="agAddLabel" placeholder="Add Completed Self-Service Request"></div>
       <div class="field"><label for="agAutoLimit" style="font-weight:400">Safety limit: turn off after this many jobs (Auto log, Run AGL and Auto EAM each)</label><input id="agAutoLimit" type="number" min="1" max="200" placeholder="20" style="max-width:100px"></div>
@@ -554,8 +559,8 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 <script type="text/plain" id="lockedScript"></script>
 <script>
 (async () => {
-const APP_VERSION = '2.23.2';
-const FILL_LATEST = '4.4.0'; // the Fill AGL / Fill EAM script this app expects
+const APP_VERSION = '2.24.0';
+const FILL_LATEST = '4.5.0'; // the Fill AGL / Fill EAM script this app expects
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -573,7 +578,7 @@ const DEFAULT_SETTINGS = {
   ghOwner: '', ghRepo: 'repair-logs', ghBranch: 'main', ghFolder: '',
   appRepo: 'repair-logger', appBranch: 'main', appPath: 'index.html',
   agAsset: 'Equipment, Reported Equipment', agAssetTag: 'MES Asset Tag Number, #598710, >Additional Comments', agResponse: 'Response Date/Time', agResponseMins: '5', agReqMinus: '5', agFault: 'Additional Comments', agResolution: 'Comments',
-  agStart: 'Please enter your request details here', agEnd: 'Completion Date', agDecouple: 'Decouple Asset?', agRoom: 'Room Number', agRoomUncheck: 'Use my default room for this request', agRoomPrefix: '%', agHelper: true, agAutoComplete: false, agAutoSubmit: true, agSubmitSecs: '10',
+  agStart: 'Please enter your request details here', agEnd: 'Completion Date', agDecouple: 'Decouple Asset?', agRoom: 'Room Number', agRoomUncheck: 'Use my default room for this request', agRoomPrefix: '%', askEam: true, agHelper: true, agAutoComplete: false, agAutoSubmit: true, agSubmitSecs: '10',
   agAutoLimit: '20', agAutoUrl: 'https://agility/Agility/MainMenuDashboard.aspx#', agAddLabel: 'Add Completed Self-Service Request', agAutoEvery: '3',
   snNewUrl: '', snAssignee: 'Keith Nissanka', snAsset: 'Asset', snAssigned: 'Assigned To', snSummary: 'Order Summary', snInfo: 'Additional Information, Order Description', snAglRef: 'Agility Reference', snWait: '2', snTable: 'x_nuvo_eam_clinical_work_orders', snKeepValues: 'Work Order Type=Corrective Maintenance\nInitiation Reason=Equipment Fault', agWaitRoom: '2', agWaitDecouple: '2', agWaitEquipment: '3', agWaitDropdown: '2', agWaitMes: '5', agWaitFields: '8',
   agTriage: 'Medical Equipment Repair - Portable Equipment\nGeneral equipment\nDevice CAN still be used\nCleaning IS NOT required prior to repair\nNO immediate health and safety risk to patients or property', agDelay: '2',
@@ -842,8 +847,7 @@ async function startScan(target){
     // sharper picture + continuous focus, larger target box, faster checking, only the barcode types we use
     const F = window.Html5QrcodeSupportedFormats || {};
     const formats = ['QR_CODE','CODE_128','CODE_39','CODE_93','EAN_13','EAN_8','UPC_A','DATA_MATRIX','ITF','CODABAR'].map(k => F[k]).filter(v => v !== undefined);
-    const cfg = {fps:20, disableFlip:true, aspectRatio:1.333,
-      qrbox:(w,h)=>({width:Math.floor(w*0.92), height:Math.floor(Math.min(h, w)*0.62)}),
+    const cfg = {fps:15, disableFlip:true,
       videoConstraints:{facingMode:'environment', width:{ideal:1920}, height:{ideal:1080}, advanced:[{focusMode:'continuous'}]},
       experimentalFeatures:{useBarCodeDetectorIfSupported:true}};
     if(formats.length) cfg.formatsToSupport = formats;
@@ -1217,6 +1221,8 @@ $('saveBtn').onclick = async () => {
   const asset = $('asset').value.trim();
   if(!asset){ toast('Asset ID is required'); $('asset').focus(); return; }
   if(!timesManual) setEndNow(); // end = the moment you press Save
+  let eamChoice = $('eamFlag').checked;
+  if(settings.askEam !== false){ eamChoice = await askEam(); if(eamChoice === null) return; $('eamFlag').checked = eamChoice; settings.eamLast = eamChoice; saveSettings(); }
   if(settings.mode==='folder') await folderReady(true).catch(()=>false);
   const resolution = $('resolution').value.trim();
   const id = newId(asset);
@@ -1232,7 +1238,7 @@ $('saveBtn').onclick = async () => {
     start: $('start').value.replace('T',' '),
     end: $('end').value.replace('T',' '),
     durationMin: ($('start').value && $('end').value) ? Math.round((new Date($('end').value)-new Date($('start').value))/60000) : '',
-    photos, status: 'open', completedAt: null, eam: $('eamFlag').checked,
+    photos, status: 'open', completedAt: null, eam: eamChoice,
     synced: false
   };
   logs.unshift(job); saveLogs();
@@ -1259,6 +1265,24 @@ $('saveBtn').onclick = async () => {
 };
 
 $('eamFlag').checked = !!settings.eamLast;
+// "Log this job in EAM too?" when saving
+function askEam(){
+  return new Promise(res => {
+    const bg = document.createElement('div'); bg.className = 'modal-bg'; bg.style.alignItems = 'center';
+    const last = !!settings.eamLast;
+    bg.innerHTML = '<div class="modal" style="max-width:380px"><h2>Log in EAM too?</h2><p style="margin:0 0 14px;color:var(--muted)">Create a ServiceNow (EAM) Work Order for this job after its Agility WO# arrives?</p>'
+      + '<div class="row" style="justify-content:flex-end"><button class="btn" data-c type="button">Cancel</button><button class="btn'+(last?'':' primary')+'" data-n type="button">No</button><button class="btn'+(last?' primary':'')+'" data-y type="button">Yes, log in EAM</button></div></div>';
+    const done = v => { document.removeEventListener('keydown', key, true); bg.remove(); res(v); };
+    const key = e => { if(e.key==='Escape'){ e.preventDefault(); done(null); } if(e.key==='Enter'){ e.preventDefault(); done(last); } };
+    bg.querySelector('[data-y]').onclick = () => done(true);
+    bg.querySelector('[data-n]').onclick = () => done(false);
+    bg.querySelector('[data-c]').onclick = () => done(null);
+    document.addEventListener('keydown', key, true);
+    document.body.appendChild(bg); bg.querySelector(last ? '[data-y]' : '[data-n]').focus();
+  });
+}
+const showEamBox = () => { const l = $('eamFlag').closest('label'); if(l) l.classList.toggle('hidden', settings.askEam !== false); };
+showEamBox();
 $('eamFlag').addEventListener('change', () => { settings.eamLast = $('eamFlag').checked; saveSettings(); });
 $('clearBtn').onclick = () => {
   const hasData = ['room','asset','fault','resolution'].some(f=>$(f).value.trim()) || draftPhotos.length;
@@ -2164,6 +2188,8 @@ function bindSettings(){
   roomPlaceholder(); $('defaultRoom').addEventListener('change', roomPlaceholder);
   $('agAutoComplete').checked = settings.agAutoComplete === true;
   $('agAutoComplete').onchange = () => { settings.agAutoComplete = $('agAutoComplete').checked; saveSettings(); };
+  $('askEam').checked = settings.askEam !== false;
+  $('askEam').onchange = () => { settings.askEam = $('askEam').checked; saveSettings(); showEamBox(); };
   $('agAutoSubmit').checked = settings.agAutoSubmit !== false;
   $('agAutoSubmit').onchange = () => { settings.agAutoSubmit = $('agAutoSubmit').checked; saveSettings(); };
   $('agHelper').checked = settings.agHelper !== false;
