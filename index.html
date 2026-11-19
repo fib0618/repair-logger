@@ -30,6 +30,8 @@ header h1{font-size:22px;margin:0}
 .loc dt{color:var(--muted)} .loc dd{margin:0;word-break:break-word;font-weight:600}
 .settings-head{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px}
 .settings-head h2{margin:0;font-size:20px}
+.waits{display:grid;grid-template-columns:1fr 90px;gap:8px 10px;align-items:center}
+.waits label{font-weight:400;font-size:14px;margin:0}
 .tabs{display:flex;gap:6px;padding:6px 16px 10px;max-width:1400px;margin:0 auto}
 .tabs button{flex:1;padding:9px 4px;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:10px;font-size:15px}
 .tabs button.active{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
@@ -377,28 +379,18 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
   <div class="card">
     <h2>Fill AGL</h2>
     <div class="hint" style="margin:0 0 10px">Press <b>→ AGL</b> on a job in the Dashboard. It copies the job and opens a helper window with each value in Agility’s order (click to copy, or load all into Win+V). With the Fill AGL extension installed in Edge, just click <b>⚡ Fill AGL</b> on the Agility form instead.</div>
+    <label class="radio" style="margin:0 0 14px"><input type="checkbox" id="agHelper">
+      <span><b>Open the copy helper window when I press → AGL</b><br><span class="hint">Turn off if you use the ⚡ Fill AGL button and don’t need the copy-paste window. → AGL still copies the job.</span></span></label>
     <div class="field">
-      <label>Edge extension 🔒</label>
-      <div class="hint" style="margin:0 0 8px">The extension’s code is kept encrypted in your <b>private</b> GitHub repository, not on this public page. Downloading it needs this device’s GitHub token and encryption key (see GitHub account and Encryption key, with Save location set to GitHub).</div>
+      <label>Tampermonkey script 🔒</label>
+      <div class="hint" style="margin:0 0 8px">Kept encrypted in your <b>private</b> GitHub repository, not on this public page. Uploading and downloading need this device’s GitHub token and encryption key.</div>
       <div class="row">
-        <button class="btn primary" id="dlExtBtn" type="button">⬇ Download Edge extension</button>
-        <button class="btn" id="upCoreBtn" type="button">⬆ Upload extension code…</button>
-        <button class="btn" id="dlCoreBtn" type="button">⬇ Download extension code (.txt)</button>
+        <button class="btn primary" id="dlUserScriptBtn" type="button">⬇ Download Tampermonkey script</button>
+        <button class="btn" id="upScriptBtn" type="button">⬆ Upload Tampermonkey script…</button>
       </div>
-      <div class="row" style="margin-top:8px">
-        <button class="btn" id="dlUserScriptBtn" type="button">⬇ Download Tampermonkey script</button>
-      </div>
-      <div class="hint"><b>If Developer mode is greyed out</b> in <code>edge://extensions</code>: install <b>Tampermonkey</b> from the Edge Add-ons store (if your PC allows it), then in <code>edge://extensions</code> › Tampermonkey › <b>Details</b> turn on <b>Allow user scripts</b> if you see it. Open the Tampermonkey icon › <b>Create a new script</b>, delete what’s there, paste the contents of the downloaded <code>fill-agl-tampermonkey.txt</code> (double-click opens it in Notepad) and press Ctrl+S. The ⚡ Fill AGL button then appears on Agility pages.</div>
-      <input type="file" id="coreFile" accept=".js,.txt,text/javascript,text/plain" class="hidden">
+      <input type="file" id="scriptFile" accept=".txt,.js,text/plain,text/javascript" class="hidden">
       <div class="status" id="extStatus"></div>
-      <div class="hint">To install the download:
-        <ol style="margin:6px 0 0;padding-left:20px">
-          <li>Unzip it to a folder you’ll keep, e.g. <code>Documents\Fill AGL</code>.</li>
-          <li>In Edge go to <code>edge://extensions</code> and turn on <b>Developer mode</b> (bottom-left).</li>
-          <li>Click <b>Load unpacked</b> and choose that folder.</li>
-          <li>Open an Agility form and look for the blue <b>⚡ Fill AGL</b> button at the bottom-right.</li>
-        </ol>
-        When you get a new <code>fill-agl-core.js</code>, upload it here, download the extension again, unzip over the same folder and click ↻ on the extension in <code>edge://extensions</code>.</div>
+      <div class="hint">When you get a new <code>fill-agl-tampermonkey.txt</code>, upload it here so every device can download it. To install or update: open the downloaded file (double-click opens Notepad), copy everything, then in Tampermonkey › Dashboard › <b>Fill AGL (Repair Logger)</b> (or <b>Create a new script</b> the first time) replace the code and press Ctrl+S. The ⚡ Fill AGL button appears on Agility pages.</div>
     </div>
     <div class="field">
       <label for="agTriage">Extension: request details dropdowns (one answer per line, in order)</label>
@@ -406,8 +398,15 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
       <div class="hint">Chosen in order under “Please enter your request details here”. Each choice makes the next dropdown appear. Must match the dropdown text.</div>
     </div>
     <div class="field">
-      <label for="agDelay">Extension: pause between steps (seconds)</label>
-      <input id="agDelay" type="number" min="0" max="10" step="0.5" placeholder="2" style="max-width:120px">
+      <label>Extension: wait times (seconds)</label>
+      <div class="hint" style="margin:0 0 8px">Increase a wait if Agility is still loading when the next step starts.</div>
+      <div class="waits">
+        <label for="agWaitRoom">After unticking default room and after picking the room</label><input id="agWaitRoom" type="number" min="0" max="30" step="0.5" placeholder="2">
+        <label for="agWaitDecouple">After ticking Decouple Asset</label><input id="agWaitDecouple" type="number" min="0" max="30" step="0.5" placeholder="2">
+        <label for="agWaitEquipment">After entering the Equipment number</label><input id="agWaitEquipment" type="number" min="0" max="30" step="0.5" placeholder="3">
+        <label for="agWaitDropdown">After each request-details dropdown</label><input id="agWaitDropdown" type="number" min="0" max="30" step="0.5" placeholder="2">
+        <label for="agWaitFields">Longest wait for a box to appear (e.g. MES Asset Tag Number)</label><input id="agWaitFields" type="number" min="0" max="60" step="1" placeholder="8">
+      </div>
     </div>
     <div class="field">
       <label for="agRoomUncheck">Extension: untick this box before the room</label>
@@ -448,7 +447,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 
 <script>
 (async () => {
-const APP_VERSION = '2.6.0';
+const APP_VERSION = '2.8.0';
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -465,7 +464,8 @@ const DEFAULT_SETTINGS = {
   ghOwner: '', ghRepo: 'repair-logs', ghBranch: 'main', ghFolder: '',
   appRepo: 'repair-logger', appBranch: 'main', appPath: 'index.html',
   agAsset: 'Equipment, Reported Equipment', agAssetTag: 'MES Asset Tag Number', agResponse: 'Response Date/Time', agResponseMins: '5', agFault: 'Additional Comments', agResolution: 'Comments',
-  agStart: 'Please enter your request details here', agEnd: 'Completion Date', agDecouple: 'Decouple Asset?', agRoom: 'Room Number', agRoomUncheck: 'Use my default room for this request', agRoomPrefix: '%', agTriage: 'Medical Equipment Repair - Portable Equipment\nGeneral equipment\nDevice CAN still be used\nCleaning IS NOT required prior to repair\nNO immediate health and safety risk to patients or property', agDelay: '2',
+  agStart: 'Please enter your request details here', agEnd: 'Completion Date', agDecouple: 'Decouple Asset?', agRoom: 'Room Number', agRoomUncheck: 'Use my default room for this request', agRoomPrefix: '%', agHelper: true, agWaitRoom: '2', agWaitDecouple: '2', agWaitEquipment: '3', agWaitDropdown: '2', agWaitFields: '8',
+  agTriage: 'Medical Equipment Repair - Portable Equipment\nGeneral equipment\nDevice CAN still be used\nCleaning IS NOT required prior to repair\nNO immediate health and safety risk to patients or property', agDelay: '2',
   odTenant: 'common',
   shareFile: 'Job_{asset}_{yyyy}-{MM}-{dd}.csv'
 };
@@ -1321,16 +1321,18 @@ function responseTime(j){
   d.setMinutes(d.getMinutes() + (parseFloat(settings.agResponseMins) || 0));
   return localInput(d).replace('T',' ');
 }
+const secs = (k, d) => { const v = parseFloat(settings[k]); return Math.round((isNaN(v) ? d : v)*1000); };
+const aglWaits = () => ({room:secs('agWaitRoom',2), decouple:secs('agWaitDecouple',2), equipment:secs('agWaitEquipment',3), dropdown:secs('agWaitDropdown',2), fields:secs('agWaitFields',8)});
 function agilityPayload(j){
   const fields = [];
-  const add = (k, value, iso) => labelsOf(k).forEach(label => fields.push(Object.assign({label, value: value ?? ''}, iso ? {iso} : {}, k==='agAsset' ? {asset:true} : {}, k==='agRoom' ? {room:true, search:settings.agRoomPrefix||''} : {})));
+  const add = (k, value, iso) => labelsOf(k).forEach(label => fields.push(Object.assign({label, value: value ?? ''}, iso ? {iso} : {}, k==='agAsset' ? {asset:true} : {}, k==='agRoom' ? {room:true, search:settings.agRoomPrefix||''} : {}, k==='agAssetTag' ? {typed:true} : {})));
   const resp = responseTime(j);
   add('agRoom', (j.room||'').replace(/^%+/,'')); add('agAsset', j.asset);
   add('agStart', fmt(j.start), j.start ? j.start.replace(' ','T') : null);
   add('agFault', j.fault); add('agAssetTag', j.asset);
   add('agResponse', resp ? fmt(resp) : '', resp ? resp.replace(' ','T') : null);
   add('agEnd', fmt(j.end), j.end ? j.end.replace(' ','T') : null); add('agResolution', j.resolution);
-  return 'REPAIRLOGGER:'+JSON.stringify({v:1, asset:j.asset, decouple:(settings.agDecouple||'').trim(), uncheck:(settings.agRoomUncheck||'').trim(), triage:(settings.agTriage||'').split('\n').map(x=>x.trim()).filter(Boolean), delay:Math.round((parseFloat(settings.agDelay)||2)*1000), fields});
+  return 'REPAIRLOGGER:'+JSON.stringify({v:1, asset:j.asset, decouple:(settings.agDecouple||'').trim(), uncheck:(settings.agRoomUncheck||'').trim(), triage:(settings.agTriage||'').split('\n').map(x=>x.trim()).filter(Boolean), delay:Math.round((parseFloat(settings.agDelay)||2)*1000), waits:aglWaits(), fields});
 }
 // AGL helper: a small window beside Agility with each value ready to copy, in form order.
 function aglItems(j){
@@ -1469,7 +1471,8 @@ async function sendToAgility(j){
   const payload = agilityPayload(j);
   try{ await navigator.clipboard.writeText(payload); }
   catch{ const t=document.createElement('textarea'); t.value=payload; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
-  openAglHelper(j);
+  if(settings.agHelper !== false) openAglHelper(j);
+  else toast(`${j.asset} copied. Click ⚡ Fill AGL on the Agility form.`);
   if(j.photos?.length && confirm(`Also download ${j.photos.length} photo(s) so you can add them with “Add Attachments” in Agility?`)){
     for(const name of j.photos){
       let blob = await idb.get('p:'+name);
@@ -1482,66 +1485,16 @@ async function sendToAgility(j){
   if(!j.agilityAt){ await updateJob(j, {agilityAt: localInput(new Date()).replace('T',' ')}); renderDash(); }
 }
 
-// ---------- Fill AGL Edge extension (built here, so it always matches this version) ----------
-const CRC_TABLE = (() => { const t = new Uint32Array(256); for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c = c&1 ? 0xEDB88320^(c>>>1) : c>>>1; t[n]=c>>>0; } return t; })();
-const crc32 = u8 => { let c = 0xFFFFFFFF; for(let i=0;i<u8.length;i++) c = CRC_TABLE[(c^u8[i])&0xFF]^(c>>>8); return (c^0xFFFFFFFF)>>>0; };
-// Minimal ZIP writer (files stored uncompressed)
-function makeZip(files){
-  const parts = [], central = []; let offset = 0;
-  const d = new Date(), dosTime = (d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1), dosDate = ((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate();
-  for(const f of files){
-    const name = te.encode(f.name), data = f.data, crc = crc32(data);
-    const h = new DataView(new ArrayBuffer(30));
-    h.setUint32(0,0x04034b50,true); h.setUint16(4,20,true); h.setUint16(6,0x0800,true); h.setUint16(8,0,true);
-    h.setUint16(10,dosTime,true); h.setUint16(12,dosDate,true); h.setUint32(14,crc,true);
-    h.setUint32(18,data.length,true); h.setUint32(22,data.length,true); h.setUint16(26,name.length,true); h.setUint16(28,0,true);
-    parts.push(new Uint8Array(h.buffer), name, data);
-    const c = new DataView(new ArrayBuffer(46));
-    c.setUint32(0,0x02014b50,true); c.setUint16(4,20,true); c.setUint16(6,20,true); c.setUint16(8,0x0800,true); c.setUint16(10,0,true);
-    c.setUint16(12,dosTime,true); c.setUint16(14,dosDate,true); c.setUint32(16,crc,true); c.setUint32(20,data.length,true); c.setUint32(24,data.length,true);
-    c.setUint16(28,name.length,true); c.setUint32(42,offset,true);
-    central.push(new Uint8Array(c.buffer), name);
-    offset += 30 + name.length + data.length;
-  }
-  const cdSize = central.reduce((n,a)=>n+a.length,0);
-  const e = new DataView(new ArrayBuffer(22));
-  e.setUint32(0,0x06054b50,true); e.setUint16(8,files.length,true); e.setUint16(10,files.length,true); e.setUint32(12,cdSize,true); e.setUint32(16,offset,true);
-  return new Blob([...parts, ...central, new Uint8Array(e.buffer)], {type:'application/zip'});
-}
-const CORE_PATH = () => ghPrefix()+'tools/fill-agl-core.enc';
+// ---------- Fill AGL Tampermonkey script, stored encrypted in the private repository ----------
+const SCRIPT_PATH = () => ghPrefix()+'tools/fill-agl-tampermonkey.enc';
+const CORE_PATH = () => ghPrefix()+'tools/fill-agl-core.enc'; // older uploads
 function extStatus(msg, kind){ const el=$('extStatus'); el.textContent=msg; el.style.color = kind==='ok' ? 'var(--ok)' : kind==='err' ? 'var(--err)' : kind==='warn' ? 'var(--warn)' : 'var(--muted)'; }
 function coreReady(){
   if(!ghConfigured()){ extStatus('Set your GitHub username, token and data repository first (GitHub account / Save location).', 'warn'); return false; }
   if(!cryptoKeys){ extStatus('Add your encryption key on this device first (Encryption key).', 'warn'); return false; }
   return true;
 }
-const coreVersion = src => (src.match(/FILL_AGL_VERSION\s*=\s*'([^']+)'/)||[])[1];
-async function uploadCore(file){
-  const src = await file.text();
-  const ver = coreVersion(src);
-  if(!ver || !/function agilityFiller\(/.test(src)) return extStatus('That isn’t a Fill AGL code file (fill-agl-core.js).', 'err');
-  extStatus('Encrypting and uploading…');
-  try{
-    await ensureRepoKey();
-    await ghPut(settings.ghRepo, ghBranch(), CORE_PATH(), await encryptBytes(te.encode(src)), 'Repair Logger: update tools');
-    extStatus('✓ Extension code '+ver+' stored encrypted in '+settings.ghOwner+'/'+settings.ghRepo+'. You can now download the extension.', 'ok');
-  }catch(e){ extStatus('Upload failed: '+e.message, 'err'); }
-}
-async function loadCore(){
-  await ensureRepoKey();
-  const enc = await ghGetBytes(settings.ghRepo, ghBranch(), CORE_PATH());
-  if(!enc) throw new Error('No extension code in your repository yet. Use “Upload extension code” with the fill-agl-core.js file.');
-  let src;
-  try{ src = td.decode(await decryptBytes(enc)); }catch{ throw new Error('Could not decrypt the extension code. Is this device using the right encryption key?'); }
-  const ver = coreVersion(src);
-  if(!ver) throw new Error('The stored extension code is damaged. Upload fill-agl-core.js again.');
-  return {src, ver};
-}
-async function checkCore(){
-  if(!ghConfigured() || !cryptoKeys){ coreReady(); return; }
-  try{ const {ver} = await loadCore(); extStatus('🔒 Extension code '+ver+' is in your private repository.', 'ok'); }
-  catch(e){ extStatus(e.message, 'warn'); }
-}
+const scriptVersion = src => (src.match(/@version\s+(\S+)/)||src.match(/FILL_AGL_VERSION\s*=\s*'([^']+)'/)||[])[1];
 function extensionContentScript(core){
   return `// Fill AGL extension ${core.ver} for Repair Logger.
 // Adds a "⚡ Fill AGL" button to Agility pages. Clicking it fills the form from a job copied in
@@ -1573,40 +1526,38 @@ function userScript(core){
 // ==/UserScript==
 ` + extensionContentScript(core);
 }
-async function extensionIcon(n){
-  const c = document.createElement('canvas'); c.width = c.height = n;
-  const g = c.getContext('2d'), r = n/5, k = n/48;
-  g.fillStyle = '#0a66d8'; g.beginPath();
-  g.moveTo(r,0); g.arcTo(n,0,n,n,r); g.arcTo(n,n,0,n,r); g.arcTo(0,n,0,0,r); g.arcTo(0,0,n,0,r); g.fill();
-  g.fillStyle = '#fff'; g.beginPath();
-  [[27,6],[12,27],[22,27],[19,42],[36,19],[26,19],[29,6]].forEach(([x,y],i) => i ? g.lineTo(x*k,y*k) : g.moveTo(x*k,y*k));
-  g.closePath(); g.fill();
-  const blob = await new Promise(res => c.toBlob(res, 'image/png'));
-  return new Uint8Array(await blob.arrayBuffer());
+async function getEncrypted(path){
+  const enc = await ghGetBytes(settings.ghRepo, ghBranch(), path);
+  if(!enc) return null;
+  try{ return td.decode(await decryptBytes(enc)); }catch{ throw new Error('Could not decrypt the stored script. Is this device using the right encryption key?'); }
 }
-async function downloadExtension(){
-  if(!coreReady()) return;
-  extStatus('Fetching extension code from your private repository…');
-  const core = await loadCore();
-  const manifest = {
-    manifest_version: 3,
-    name: 'Fill AGL (Repair Logger)',
-    version: core.ver.replace(/[^0-9.]/g,''),
-    description: 'Adds a Fill AGL button to Agility forms that fills fields from a job copied in Repair Logger. Never submits the form.',
-    permissions: ['clipboardRead'],
-    content_scripts: [{ matches: ['*://agility/*', '*://agility.*/*'], js: ['fill-agl.js'], run_at: 'document_idle' }],
-    icons: { '48': 'icon48.png', '128': 'icon128.png' }
-  };
-  const readme = `Fill AGL extension ${core.ver} for Microsoft Edge (Repair Logger)\r\n\r\nInstall:\r\n1. Unzip this file to a folder you will keep (e.g. Documents\\\\Fill AGL).\r\n2. In Edge open edge://extensions and turn on Developer mode (bottom-left).\r\n3. Click "Load unpacked" and choose that folder.\r\n4. Open an Agility form: a blue "Fill AGL" button appears at the bottom-right.\r\n\r\nUse: in Repair Logger press "-> AGL" on a job, then click "Fill AGL" on the Agility form.\r\nIt only fills fields and ticks "Decouple Asset?". It never presses Complete or submits anything.\r\n\r\nUpdate: download again from Repair Logger > Settings > Fill AGL, unzip over the same folder,\r\nthen click the reload icon on the extension in edge://extensions.\r\n`;
-  const zip = makeZip([
-    {name:'manifest.json', data: te.encode(JSON.stringify(manifest, null, 2))},
-    {name:'fill-agl.js', data: te.encode(extensionContentScript(core))},
-    {name:'icon48.png', data: await extensionIcon(48)},
-    {name:'icon128.png', data: await extensionIcon(128)},
-    {name:'README.txt', data: te.encode(readme)}
-  ]);
-  download(new File([zip], `fill-agl-extension-${core.ver}.zip`, {type:'application/zip'}));
-  extStatus('✓ Downloaded extension '+core.ver+'. Unzip it, then Load unpacked in edge://extensions.', 'ok');
+async function uploadScript(file){
+  let src = await file.text();
+  const isUserScript = /==UserScript==/.test(src), isCore = /function agilityFiller\(/.test(src) && /FILL_AGL_VERSION/.test(src);
+  if(!isUserScript && !isCore) return extStatus('That isn’t the Fill AGL Tampermonkey script (fill-agl-tampermonkey.txt).', 'err');
+  if(!isUserScript) src = userScript({src, ver: scriptVersion(src)}); // older core file: wrap it
+  const ver = scriptVersion(src) || '?';
+  extStatus('Encrypting and uploading…');
+  try{
+    await ensureRepoKey();
+    await ghPut(settings.ghRepo, ghBranch(), SCRIPT_PATH(), await encryptBytes(te.encode(src)), 'Repair Logger: update tools');
+    extStatus('✓ Tampermonkey script '+ver+' stored encrypted in '+settings.ghOwner+'/'+settings.ghRepo+'.', 'ok');
+  }catch(e){ extStatus('Upload failed: '+e.message, 'err'); }
+}
+async function loadScript(){
+  await ensureRepoKey();
+  let src = await getEncrypted(SCRIPT_PATH());
+  if(!src){
+    const core = await getEncrypted(CORE_PATH());
+    if(core && scriptVersion(core)) src = userScript({src:core, ver:scriptVersion(core)});
+  }
+  if(!src) throw new Error('No Tampermonkey script in your repository yet. Use “Upload Tampermonkey script” with fill-agl-tampermonkey.txt.');
+  return {src, ver: scriptVersion(src) || '?'};
+}
+async function checkCore(){
+  if(!ghConfigured() || !cryptoKeys){ coreReady(); return; }
+  try{ const {ver} = await loadScript(); extStatus('🔒 Tampermonkey script '+ver+' is in your private repository.', 'ok'); }
+  catch(e){ extStatus(e.message, 'warn'); }
 }
 async function renderDash(){
   const q = $('dashSearch').value.trim().toLowerCase();
@@ -1656,7 +1607,7 @@ function bindSettings(){
     r.checked = r.value===settings.mode;
     r.onchange = () => { settings.mode=r.value; saveSettings(); showModeSettings(); };
   });
-  ['odFolder','odFile','odClient','odTenant','shareFile','ghOwner','ghRepo','ghBranch','ghFolder','appRepo','appBranch','appPath','agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom','agRoomUncheck','agRoomPrefix','agTriage','agDelay','agAssetTag','agResponse','agResponseMins'].forEach(k=>{
+  ['odFolder','odFile','odClient','odTenant','shareFile','ghOwner','ghRepo','ghBranch','ghFolder','appRepo','appBranch','appPath','agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom','agRoomUncheck','agRoomPrefix','agTriage','agAssetTag','agResponse','agResponseMins','agWaitRoom','agWaitDecouple','agWaitEquipment','agWaitDropdown','agWaitFields'].forEach(k=>{
     $(k).value = settings[k]||'';
     $(k).addEventListener('change', ()=>{ settings[k]=$(k).value.trim(); saveSettings(); renderSaveLoc(); });
   });
@@ -1667,34 +1618,26 @@ function bindSettings(){
     $('folderModeHint').textContent = 'Not available in this browser (iPhone Safari can’t pick folders). On iPhone use Share sheet → Save to Files. On a PC use Chrome or Edge.'; }
   $('signOutBtn').onclick = () => { store.set('token',null); updateOdStatus(); toast('Signed out'); };
   bindGitHubSettings();
-  $('dlExtBtn').onclick = () => downloadExtension().catch(e => extStatus('Could not build the extension: '+e.message, 'err'));
-  $('upCoreBtn').onclick = () => { if(!coreReady()) return; $('coreFile').click(); };
+  $('agHelper').checked = settings.agHelper !== false;
+  $('agHelper').onchange = () => { settings.agHelper = $('agHelper').checked; saveSettings(); toast(settings.agHelper ? 'Copy helper on' : 'Copy helper off'); };
+  $('upScriptBtn').onclick = () => { if(!coreReady()) return; $('scriptFile').click(); };
+  $('scriptFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value=''; if(f) uploadScript(f); });
   $('dlUserScriptBtn').onclick = async () => {
     if(!coreReady()) return;
-    extStatus('Fetching extension code from your private repository…');
+    extStatus('Fetching the script from your private repository…');
     try{
-      const core = await loadCore();
-      download(new File([userScript(core)], 'fill-agl-tampermonkey.txt', {type:'text/plain'}));
-      extStatus('✓ Downloaded fill-agl-tampermonkey.txt ('+core.ver+'). Open it (Notepad), copy all, and paste into a new Tampermonkey script.', 'ok');
+      const {src, ver} = await loadScript();
+      download(new File([src], 'fill-agl-tampermonkey.txt', {type:'text/plain'}));
+      extStatus('✓ Downloaded fill-agl-tampermonkey.txt ('+ver+'). Open it, copy all, and paste into Tampermonkey.', 'ok');
     }catch(e){ extStatus('Could not download: '+e.message, 'err'); }
   };
-  $('dlCoreBtn').onclick = async () => {
-    if(!coreReady()) return;
-    extStatus('Fetching extension code from your private repository…');
-    try{
-      const core = await loadCore();
-      download(new File([core.src], 'fill-agl-core.txt', {type:'text/plain'}));
-      extStatus('✓ Downloaded fill-agl-core.txt ('+core.ver+'). Keep it private.', 'ok');
-    }catch(e){ extStatus('Could not download: '+e.message, 'err'); }
-  };
-  $('coreFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value=''; if(f) uploadCore(f); });
   $('agResetBtn').onclick = () => {
-    ['agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom','agRoomUncheck','agRoomPrefix','agTriage','agDelay','agAssetTag','agResponse','agResponseMins'].forEach(k=>{ settings[k]=DEFAULT_SETTINGS[k]; $(k).value=settings[k]; });
+    ['agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom','agRoomUncheck','agRoomPrefix','agTriage','agAssetTag','agResponse','agResponseMins','agWaitRoom','agWaitDecouple','agWaitEquipment','agWaitDropdown','agWaitFields'].forEach(k=>{ settings[k]=DEFAULT_SETTINGS[k]; $(k).value=settings[k]; });
     saveSettings(); toast('Agility fields reset');
   };
   $('setupLinkBtn').onclick = async () => {
-    const {mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom, agRoomUncheck, agRoomPrefix, agTriage, agDelay, agAssetTag, agResponse, agResponseMins} = settings;
-    const enc = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom, agRoomUncheck, agRoomPrefix, agTriage, agDelay, agAssetTag, agResponse, agResponseMins})))));
+    const {mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom, agRoomUncheck, agRoomPrefix, agTriage, agAssetTag, agResponse, agResponseMins, agWaitRoom, agWaitDecouple, agWaitEquipment, agWaitDropdown, agWaitFields, agHelper} = settings;
+    const enc = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom, agRoomUncheck, agRoomPrefix, agTriage, agAssetTag, agResponse, agResponseMins, agWaitRoom, agWaitDecouple, agWaitEquipment, agWaitDropdown, agWaitFields, agHelper})))));
     const link = redirectUri+'#cfg='+enc;
     try{ await navigator.clipboard.writeText(link); toast('Setup link copied'); }catch{ prompt('Copy this link:', link); }
   };
