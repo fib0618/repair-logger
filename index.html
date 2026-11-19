@@ -401,6 +401,15 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
         When you get a new <code>fill-agl-core.js</code>, upload it here, download the extension again, unzip over the same folder and click ↻ on the extension in <code>edge://extensions</code>.</div>
     </div>
     <div class="field">
+      <label for="agTriage">Extension: request details dropdowns (one answer per line, in order)</label>
+      <textarea id="agTriage" rows="3" placeholder="Medical Equipment Repair - Portable Equipment"></textarea>
+      <div class="hint">Chosen in order under “Please enter your request details here”. Each choice makes the next dropdown appear. Must match the dropdown text.</div>
+    </div>
+    <div class="field">
+      <label for="agDelay">Extension: pause between steps (seconds)</label>
+      <input id="agDelay" type="number" min="0" max="10" step="0.5" placeholder="2" style="max-width:120px">
+    </div>
+    <div class="field">
       <label for="agRoomUncheck">Extension: untick this box before the room</label>
       <input id="agRoomUncheck" placeholder="Use my default room for this request">
       <div class="hint">Unticked only when the job has a room number, so the Room Number box can be typed in. Leave empty to skip.</div>
@@ -435,7 +444,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 
 <script>
 (async () => {
-const APP_VERSION = '2.4.1';
+const APP_VERSION = '2.5.0';
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -452,7 +461,7 @@ const DEFAULT_SETTINGS = {
   ghOwner: '', ghRepo: 'repair-logs', ghBranch: 'main', ghFolder: '',
   appRepo: 'repair-logger', appBranch: 'main', appPath: 'index.html',
   agAsset: 'Equipment, Reported Equipment, MES Asset Tag Number', agFault: 'Additional Comments', agResolution: 'Comments',
-  agStart: 'Please enter your request details here, Response Date/Time', agEnd: 'Completion Date', agDecouple: 'Decouple Asset?', agRoom: 'Room Number', agRoomUncheck: 'Use my default room for this request', agRoomPrefix: '%',
+  agStart: 'Please enter your request details here, Response Date/Time', agEnd: 'Completion Date', agDecouple: 'Decouple Asset?', agRoom: 'Room Number', agRoomUncheck: 'Use my default room for this request', agRoomPrefix: '%', agTriage: 'Medical Equipment Repair - Portable Equipment\nGeneral equipment\nDevice CAN still be used', agDelay: '2',
   odTenant: 'common',
   shareFile: 'Job_{asset}_{yyyy}-{MM}-{dd}.csv'
 };
@@ -1304,7 +1313,7 @@ function agilityPayload(j){
   const add = (k, value, iso) => labelsOf(k).forEach(label => fields.push(Object.assign({label, value: value ?? ''}, iso ? {iso} : {}, k==='agAsset' ? {asset:true} : {}, k==='agRoom' ? {room:true, search:settings.agRoomPrefix||''} : {})));
   add('agRoom', (j.room||'').replace(/^%+/,'')); add('agAsset', j.asset); add('agFault', j.fault); add('agResolution', j.resolution);
   add('agStart', fmt(j.start), j.start ? j.start.replace(' ','T') : null); add('agEnd', fmt(j.end), j.end ? j.end.replace(' ','T') : null);
-  return 'REPAIRLOGGER:'+JSON.stringify({v:1, asset:j.asset, decouple:(settings.agDecouple||'').trim(), uncheck:(settings.agRoomUncheck||'').trim(), fields});
+  return 'REPAIRLOGGER:'+JSON.stringify({v:1, asset:j.asset, decouple:(settings.agDecouple||'').trim(), uncheck:(settings.agRoomUncheck||'').trim(), triage:(settings.agTriage||'').split('\n').map(x=>x.trim()).filter(Boolean), delay:Math.round((parseFloat(settings.agDelay)||2)*1000), fields});
 }
 // AGL helper: a small window beside Agility with each value ready to copy, in form order.
 function aglItems(j){
@@ -1320,7 +1329,7 @@ function aglItems(j){
   ];
 }
 function aglHelperHtml(j){
-  const data = JSON.stringify({asset:j.asset, decouple:(settings.agDecouple||'').trim(), uncheck:(settings.agRoomUncheck||'').trim(), items:aglItems(j), payload:agilityPayload(j)}).replace(/</g,'\\u003c');
+  const data = JSON.stringify({asset:j.asset, decouple:(settings.agDecouple||'').trim(), uncheck:(settings.agRoomUncheck||'').trim(), triage:(settings.agTriage||'').split('\n').map(x=>x.trim()).filter(Boolean), items:aglItems(j), payload:agilityPayload(j)}).replace(/</g,'\\u003c');
   return `<!doctype html><html><head><meta charset="utf-8"><title>AGL · ${j.asset.replace(/[<&]/g,'')}</title>
 <style>
 :root{--bg:#f4f5f7;--card:#fff;--text:#16181d;--muted:#6b7280;--line:#e2e5ea;--accent:#0a66d8;--ok:#15803d;--warn:#b45309}
@@ -1369,7 +1378,7 @@ const has = i => !!(items[i] && items[i].value);
 let cur = items.findIndex((x,i)=>has(i)); if(cur<0) cur = 0;
 let armed = false, started = false; const done = new Set();
 document.getElementById('t').textContent = 'AGL · ' + D.asset;
-{ const tips=[]; if(D.uncheck && D.items[0] && D.items[0].value) tips.push('untick “'+D.uncheck+'” (for Room Number)'); if(D.decouple) tips.push('tick “'+D.decouple+'” (for Equipment)'); if(tips.length){ const d=document.getElementById('dec'); d.hidden=false; d.textContent = 'In Agility first ' + tips.join(' and ') + '.'; } }
+{ const tips=[]; if(D.uncheck && D.items[0] && D.items[0].value) tips.push('untick “'+D.uncheck+'” (for Room Number)'); if(D.decouple) tips.push('tick “'+D.decouple+'” (for Equipment)'); if(D.triage && D.triage.length) tips.push('choose '+D.triage.map(t=>'“'+t+'”').join(' › ')); if(tips.length){ const d=document.getElementById('dec'); d.hidden=false; d.textContent = 'In Agility first ' + tips.join(' and ') + '.'; } }
 async function copy(t){
   try{ await navigator.clipboard.writeText(t); return true; }
   catch(e){ const a=document.createElement('textarea'); a.value=t; document.body.appendChild(a); a.select(); const ok=document.execCommand('copy'); a.remove(); return ok; }
@@ -1628,7 +1637,7 @@ function bindSettings(){
     r.checked = r.value===settings.mode;
     r.onchange = () => { settings.mode=r.value; saveSettings(); showModeSettings(); };
   });
-  ['odFolder','odFile','odClient','odTenant','shareFile','ghOwner','ghRepo','ghBranch','ghFolder','appRepo','appBranch','appPath','agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom','agRoomUncheck','agRoomPrefix'].forEach(k=>{
+  ['odFolder','odFile','odClient','odTenant','shareFile','ghOwner','ghRepo','ghBranch','ghFolder','appRepo','appBranch','appPath','agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom','agRoomUncheck','agRoomPrefix','agTriage','agDelay'].forEach(k=>{
     $(k).value = settings[k]||'';
     $(k).addEventListener('change', ()=>{ settings[k]=$(k).value.trim(); saveSettings(); renderSaveLoc(); });
   });
@@ -1661,12 +1670,12 @@ function bindSettings(){
   };
   $('coreFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value=''; if(f) uploadCore(f); });
   $('agResetBtn').onclick = () => {
-    ['agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom','agRoomUncheck','agRoomPrefix'].forEach(k=>{ settings[k]=DEFAULT_SETTINGS[k]; $(k).value=settings[k]; });
+    ['agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom','agRoomUncheck','agRoomPrefix','agTriage','agDelay'].forEach(k=>{ settings[k]=DEFAULT_SETTINGS[k]; $(k).value=settings[k]; });
     saveSettings(); toast('Agility fields reset');
   };
   $('setupLinkBtn').onclick = async () => {
-    const {mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom, agRoomUncheck, agRoomPrefix} = settings;
-    const enc = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom, agRoomUncheck, agRoomPrefix})))));
+    const {mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom, agRoomUncheck, agRoomPrefix, agTriage, agDelay} = settings;
+    const enc = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom, agRoomUncheck, agRoomPrefix, agTriage, agDelay})))));
     const link = redirectUri+'#cfg='+enc;
     try{ await navigator.clipboard.writeText(link); toast('Setup link copied'); }catch{ prompt('Copy this link:', link); }
   };
