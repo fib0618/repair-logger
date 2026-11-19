@@ -430,6 +430,9 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
     <div class="hint" style="margin:0 0 10px">Press <b>→ AGL</b> on a job in the Dashboard. It copies the job and opens a helper window with each value in Agility’s order (click to copy, or load all into Win+V). With the Fill AGL extension installed in Edge, just click <b>⚡ Fill AGL</b> on the Agility form instead.</div>
     <label class="radio" style="margin:0 0 10px"><input type="checkbox" id="agAutoComplete">
       <span><b>Mark the job Completed when I press → AGL</b><br><span class="hint">Usually off: jobs go AGL done (green, WO# captured) → EAM done (purple) → Completed.</span></span></label>
+    <label class="radio" style="margin:0 0 6px"><input type="checkbox" id="agAutoSubmit">
+      <span><b>Press Agility’s Complete button for me after a countdown</b><br><span class="hint">After filling, the panel counts down and then presses Complete. Cancel (or Esc) stops it. It never presses Complete if something needs checking.</span></span></label>
+    <div class="field" style="margin:0 0 12px 28px"><label for="agSubmitSecs" style="font-weight:400">Countdown (seconds)</label><input id="agSubmitSecs" type="number" min="3" max="60" placeholder="10" style="max-width:100px"></div>
     <label class="radio" style="margin:0 0 14px"><input type="checkbox" id="agHelper">
       <span><b>Open the copy helper window when I press → AGL</b><br><span class="hint">Turn off if you use the ⚡ Fill AGL button and don’t need the copy-paste window. → AGL still copies the job.</span></span></label>
     <div class="field">
@@ -536,8 +539,8 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 <script type="text/plain" id="lockedScript"></script>
 <script>
 (async () => {
-const APP_VERSION = '2.19.0';
-const FILL_LATEST = '3.7.1'; // the Fill AGL / Fill EAM script this app expects
+const APP_VERSION = '2.20.0';
+const FILL_LATEST = '3.8.0'; // the Fill AGL / Fill EAM script this app expects
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -555,7 +558,7 @@ const DEFAULT_SETTINGS = {
   ghOwner: '', ghRepo: 'repair-logs', ghBranch: 'main', ghFolder: '',
   appRepo: 'repair-logger', appBranch: 'main', appPath: 'index.html',
   agAsset: 'Equipment, Reported Equipment', agAssetTag: 'MES Asset Tag Number, #598710, >Additional Comments', agResponse: 'Response Date/Time', agResponseMins: '5', agReqMinus: '5', agFault: 'Additional Comments', agResolution: 'Comments',
-  agStart: 'Please enter your request details here', agEnd: 'Completion Date', agDecouple: 'Decouple Asset?', agRoom: 'Room Number', agRoomUncheck: 'Use my default room for this request', agRoomPrefix: '%', agHelper: true, agAutoComplete: false,
+  agStart: 'Please enter your request details here', agEnd: 'Completion Date', agDecouple: 'Decouple Asset?', agRoom: 'Room Number', agRoomUncheck: 'Use my default room for this request', agRoomPrefix: '%', agHelper: true, agAutoComplete: false, agAutoSubmit: true, agSubmitSecs: '10',
   snNewUrl: '', snAssignee: 'Keith Nissanka', snAsset: 'Asset', snAssigned: 'Assigned To', snSummary: 'Order Summary', snInfo: 'Additional Information, Order Description', snAglRef: 'Agility Reference', snWait: '2', snTable: 'x_nuvo_eam_clinical_work_orders', snKeepValues: 'Work Order Type=Corrective Maintenance\nInitiation Reason=Equipment Fault', agWaitRoom: '2', agWaitDecouple: '2', agWaitEquipment: '3', agWaitDropdown: '2', agWaitMes: '5', agWaitFields: '8',
   agTriage: 'Medical Equipment Repair - Portable Equipment\nGeneral equipment\nDevice CAN still be used\nCleaning IS NOT required prior to repair\nNO immediate health and safety risk to patients or property', agDelay: '2',
   odTenant: 'common',
@@ -1592,7 +1595,7 @@ function agilityPayload(j){
   add('agResponse', fmtAgl(j.start), j.start ? j.start.replace(' ','T') : null); // Response Date/Time: start
   add('agEnd', fmtAgl(j.end), j.end ? j.end.replace(' ','T') : null);            // Completion Date: end
   add('agResolution', j.resolution);
-  return 'REPAIRLOGGER:'+JSON.stringify({v:1, id:j.id, asset:j.asset, decouple:(settings.agDecouple||'').trim(), uncheck:(settings.agRoomUncheck||'').trim(), triage:(settings.agTriage||'').split('\n').map(x=>x.trim()).filter(Boolean), delay:Math.round((parseFloat(settings.agDelay)||2)*1000), waits:aglWaits(), fields});
+  return 'REPAIRLOGGER:'+JSON.stringify({v:1, id:j.id, asset:j.asset, decouple:(settings.agDecouple||'').trim(), uncheck:(settings.agRoomUncheck||'').trim(), triage:(settings.agTriage||'').split('\n').map(x=>x.trim()).filter(Boolean), delay:Math.round((parseFloat(settings.agDelay)||2)*1000), waits:aglWaits(), submit: settings.agAutoSubmit !== false ? {secs: parseFloat(settings.agSubmitSecs) || 10, label: 'Complete'} : null, fields});
 }
 // AGL helper: a small window beside Agility with each value ready to copy, in form order.
 function aglItems(j){
@@ -1956,7 +1959,7 @@ function bindSettings(){
     r.checked = r.value===settings.mode;
     r.onchange = () => { settings.mode=r.value; saveSettings(); showModeSettings(); };
   });
-  ['defaultRoom','odFolder','odFile','odClient','odTenant','shareFile','ghOwner','ghRepo','ghBranch','ghFolder','appRepo','appBranch','appPath','agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom','agRoomUncheck','agRoomPrefix','agTriage','agAssetTag','agResponse','agReqMinus','agWaitRoom','agWaitDecouple','agWaitEquipment','agWaitDropdown','agWaitMes','agWaitFields','snNewUrl','snAssignee','snAsset','snAssigned','snSummary','snInfo','snAglRef','snWait','snTable','snKeepValues'].forEach(k=>{
+  ['defaultRoom','odFolder','odFile','odClient','odTenant','shareFile','ghOwner','ghRepo','ghBranch','ghFolder','appRepo','appBranch','appPath','agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom','agRoomUncheck','agRoomPrefix','agTriage','agAssetTag','agResponse','agReqMinus','agSubmitSecs','agWaitRoom','agWaitDecouple','agWaitEquipment','agWaitDropdown','agWaitMes','agWaitFields','snNewUrl','snAssignee','snAsset','snAssigned','snSummary','snInfo','snAglRef','snWait','snTable','snKeepValues'].forEach(k=>{
     $(k).value = settings[k]||'';
     $(k).addEventListener('change', ()=>{ settings[k]=$(k).value.trim(); saveSettings(); renderSaveLoc(); });
   });
@@ -1970,6 +1973,8 @@ function bindSettings(){
   roomPlaceholder(); $('defaultRoom').addEventListener('change', roomPlaceholder);
   $('agAutoComplete').checked = settings.agAutoComplete === true;
   $('agAutoComplete').onchange = () => { settings.agAutoComplete = $('agAutoComplete').checked; saveSettings(); };
+  $('agAutoSubmit').checked = settings.agAutoSubmit !== false;
+  $('agAutoSubmit').onchange = () => { settings.agAutoSubmit = $('agAutoSubmit').checked; saveSettings(); };
   $('agHelper').checked = settings.agHelper !== false;
   $('agHelper').onchange = () => { settings.agHelper = $('agHelper').checked; saveSettings(); toast(settings.agHelper ? 'Copy helper on' : 'Copy helper off'); };
   $('upScriptBtn').onclick = () => { if(!coreReady()) return; $('scriptFile').click(); };
