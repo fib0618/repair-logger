@@ -243,7 +243,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
     <table>
       <thead><tr>
         <th style="width:9%">Room</th><th style="width:9%">Asset ID</th><th style="width:14%">Fault</th><th style="width:15%">Resolution</th><th style="width:6%">Tags</th>
-        <th style="width:9%">Start</th><th style="width:9%">End</th><th style="width:5%">Mins</th><th style="width:6%">Photos</th><th style="width:9%">AGL WO#</th><th id="thDone" style="width:9%">Completed</th><th style="width:10%"></th>
+        <th style="width:9%">Start</th><th style="width:9%">End</th><th style="width:5%">Mins</th><th style="width:6%">Photos</th><th style="width:9%">AGL / EAM WO#</th><th id="thDone" style="width:9%">Completed</th><th style="width:10%"></th>
       </tr></thead>
       <tbody id="dashBody"></tbody>
     </table>
@@ -477,6 +477,25 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
   </div>
 
   <div class="card">
+    <h2>Fill EAM (ServiceNow)</h2>
+    <div class="hint" style="margin:0 0 10px">After a job has its AGL WO#, press <b>→ EAM</b> on the Dashboard, then <b>⚡ Fill EAM</b> in ServiceNow (same Tampermonkey script). It works from any ServiceNow page and shows what it will create; nothing happens until you press <b>Create Work Order</b>. It uses your ServiceNow login in Edge (the same method as Service Report Helper); no password is stored. The new number comes back and the job is marked EAM done. <b>Fill the form instead</b> is there as a backup.</div>
+    <div class="field"><label for="snNewUrl">ServiceNow “new Work Order” link (optional)</label>
+      <input id="snNewUrl" placeholder="https://healthineers.service-now.com/" autocapitalize="off" spellcheck="false">
+      <div class="hint">Open a new Work Order in ServiceNow, copy the address bar and paste it here. → EAM then opens it for you. If your ServiceNow address doesn’t end in service-now.com, download the Tampermonkey script again after saving this so it runs there.</div></div>
+    <div class="field"><label for="snAssignee">Assigned To</label><input id="snAssignee" placeholder="Keith Nissanka"></div>
+    <label>Which ServiceNow field gets what</label>
+    <div class="hint" style="margin:0 0 8px">Field names as shown on the form. Several names separated by commas: the first one found is used.</div>
+    <div class="field"><label for="snAsset" style="font-weight:400">Asset ID →</label><input id="snAsset" placeholder="Asset"></div>
+    <div class="field"><label for="snAssigned" style="font-weight:400">Assigned To →</label><input id="snAssigned" placeholder="Assigned To"></div>
+    <div class="field"><label for="snSummary" style="font-weight:400">Fault →</label><input id="snSummary" placeholder="Order Summary"></div>
+    <div class="field"><label for="snInfo" style="font-weight:400">Resolution →</label><input id="snInfo" placeholder="Additional Information, Order Description"></div>
+    <div class="field"><label for="snAglRef" style="font-weight:400">AGL WO# →</label><input id="snAglRef" placeholder="Agility Reference"></div>
+    <div class="field"><label for="snKeepValues" style="font-weight:400">Also set (one per line, Field name=value)</label><textarea id="snKeepValues" rows="2" placeholder="Work Order Type=Corrective Maintenance"></textarea></div>
+    <div class="field"><label for="snTable" style="font-weight:400">ServiceNow table</label><input id="snTable" placeholder="x_nuvo_eam_clinical_work_orders" spellcheck="false"><div class="hint">Clinical Work Orders, the same table Service Report Helper uses.</div></div>
+    <div class="field"><label for="snWait" style="font-weight:400">Wait after Asset / Assigned To (seconds)</label><input id="snWait" type="number" min="0" max="30" step="0.5" placeholder="2" style="max-width:120px"></div>
+  </div>
+
+  <div class="card">
     <h2>Other devices</h2>
     <button class="btn" id="setupLinkBtn" type="button">Copy setup link</button>
     <div class="hint">Opens this app on another device with the same settings and tags. The GitHub token and encryption key are <b>not</b> included; add them on that device.</div>
@@ -487,7 +506,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 
 <script>
 (async () => {
-const APP_VERSION = '2.11.0';
+const APP_VERSION = '2.14.0';
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -505,7 +524,8 @@ const DEFAULT_SETTINGS = {
   ghOwner: '', ghRepo: 'repair-logs', ghBranch: 'main', ghFolder: '',
   appRepo: 'repair-logger', appBranch: 'main', appPath: 'index.html',
   agAsset: 'Equipment, Reported Equipment', agAssetTag: 'MES Asset Tag Number, #598710, >Additional Comments', agResponse: 'Response Date/Time', agResponseMins: '5', agFault: 'Additional Comments', agResolution: 'Comments',
-  agStart: 'Please enter your request details here', agEnd: 'Completion Date', agDecouple: 'Decouple Asset?', agRoom: 'Room Number', agRoomUncheck: 'Use my default room for this request', agRoomPrefix: '%', agHelper: true, agAutoComplete: false, agWaitRoom: '2', agWaitDecouple: '2', agWaitEquipment: '3', agWaitDropdown: '2', agWaitMes: '5', agWaitFields: '8',
+  agStart: 'Please enter your request details here', agEnd: 'Completion Date', agDecouple: 'Decouple Asset?', agRoom: 'Room Number', agRoomUncheck: 'Use my default room for this request', agRoomPrefix: '%', agHelper: true, agAutoComplete: false,
+  snNewUrl: '', snAssignee: 'Keith Nissanka', snAsset: 'Asset', snAssigned: 'Assigned To', snSummary: 'Order Summary', snInfo: 'Additional Information, Order Description', snAglRef: 'Agility Reference', snWait: '2', snTable: 'x_nuvo_eam_clinical_work_orders', snKeepValues: 'Work Order Type=Corrective Maintenance\nInitiation Reason=Equipment Fault', agWaitRoom: '2', agWaitDecouple: '2', agWaitEquipment: '3', agWaitDropdown: '2', agWaitMes: '5', agWaitFields: '8',
   agTriage: 'Medical Equipment Repair - Portable Equipment\nGeneral equipment\nDevice CAN still be used\nCleaning IS NOT required prior to repair\nNO immediate health and safety risk to patients or property', agDelay: '2',
   odTenant: 'common',
   shareFile: 'Job_{asset}_{yyyy}-{MM}-{dd}.csv'
@@ -786,9 +806,9 @@ $('pickPhotoBtn').onclick = () => $('photoPick').click();
 ['photoCam','photoPick'].forEach(id => $(id).addEventListener('change', e => { addPhotos([...e.target.files]); e.target.value=''; }));
 
 // ---------- CSV ----------
-const HEADERS = ['Logged At','Room Number','Asset ID','Fault','Resolution','Tags','Start Time','End Time','Duration (min)','Photos','Job ID','AGL WO#','EAM Done'];
+const HEADERS = ['Logged At','Room Number','Asset ID','Fault','Resolution','Tags','Start Time','End Time','Duration (min)','Photos','Job ID','AGL WO#','EAM Done','EAM WO#'];
 const esc = v => { v = String(v??''); return /[",\n\r]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
-const row = j => [fmt(j.loggedAt), j.room||'', j.asset, j.fault, j.resolution, (j.tags||[]).join(' '), fmt(j.start), fmt(j.end), j.durationMin??'', (j.photos||[]).length, j.id, j.aglWo||'', fmt(j.eamAt)].map(esc).join(',');
+const row = j => [fmt(j.loggedAt), j.room||'', j.asset, j.fault, j.resolution, (j.tags||[]).join(' '), fmt(j.start), fmt(j.end), j.durationMin??'', (j.photos||[]).length, j.id, j.aglWo||'', fmt(j.eamAt), j.eamWo||''].map(esc).join(',');
 const csvOf = jobs => HEADERS.join(',')+'\r\n'+jobs.map(row).join('\r\n')+'\r\n';
 const publicJob = j => { const {synced, done, ...rest} = j; return rest; };
 
@@ -1359,6 +1379,22 @@ async function updateJob(j, changes){
   }
   return true;
 }
+function snPayload(j){
+  const fields = [];
+  const add = (k, value, ref) => labelsOf(k).forEach(label => fields.push({label, key:k, value: value ?? '', ref: !!ref}));
+  add('snAsset', j.asset, true); add('snAssigned', settings.snAssignee, true);
+  add('snSummary', j.fault); add('snInfo', j.resolution); add('snAglRef', j.aglWo);
+  const keepValues = (settings.snKeepValues||'').split('\n').map(l => l.split('=')).filter(p => p.length>1 && p[0].trim() && p.slice(1).join('=').trim()).map(p => ({label:p[0].trim(), value:p.slice(1).join('=').trim()}));
+  return 'REPAIRLOGGER-SN:'+JSON.stringify({v:1, id:j.id, asset:j.asset, table:(settings.snTable||'x_nuvo_eam_clinical_work_orders').trim(), wait:secs('snWait',2), keepValues, fields});
+}
+async function sendToEam(j){
+  const text = snPayload(j);
+  try{ await navigator.clipboard.writeText(text); }
+  catch{ const t=document.createElement('textarea'); t.value=text; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
+  if(settings.snNewUrl) window.open(settings.snNewUrl, '_blank');
+  toast(`${j.asset} copied. Click ⚡ Fill EAM on the ServiceNow Work Order.`);
+  if(!j.snAt){ await updateJob(j, {snAt: localInput(new Date()).replace('T',' ')}); renderDash(); }
+}
 async function markEam(j){
   const now = localInput(new Date()).replace('T',' ');
   const ok = await updateJob(j, {eamAt: now, status: 'completed', completedAt: now});
@@ -1375,11 +1411,12 @@ function editJob(j){
     <div class="field"><label>Resolution</label><textarea data-k="resolution"></textarea></div>
     <div class="row"><div class="field" style="flex:1;min-width:180px"><label>Start time</label><input type="datetime-local" data-k="start"></div>
       <div class="field" style="flex:1;min-width:180px"><label>End time</label><input type="datetime-local" data-k="end"></div></div>
-    <div class="field"><label>AGL WO#</label><input data-k="aglWo" inputmode="numeric" placeholder="e.g. 10545336"></div>
+    <div class="row"><div class="field" style="flex:1;min-width:160px"><label>AGL WO#</label><input data-k="aglWo" inputmode="numeric" placeholder="e.g. 10545336"></div>
+      <div class="field" style="flex:1;min-width:160px"><label>EAM (ServiceNow) WO#</label><input data-k="eamWo" placeholder="e.g. CWKD1096073"></div></div>
     <label class="radio"><input type="checkbox" data-k="eam"><span>EAM done (ServiceNow entered)</span></label>
     <div class="row" style="margin-top:12px;justify-content:flex-end"><button class="btn" data-x type="button">Cancel</button><button class="btn primary" data-save type="button">Save changes</button></div></div>`;
   const q = k => bg.querySelector('[data-k="'+k+'"]');
-  ['room','asset','fault','resolution','aglWo'].forEach(k => q(k).value = j[k]||'');
+  ['room','asset','fault','resolution','aglWo','eamWo'].forEach(k => q(k).value = j[k]||'');
   q('start').value = toInput(j.start); q('end').value = toInput(j.end); q('eam').checked = !!j.eamAt;
   bg.querySelector('[data-x]').onclick = () => bg.remove();
   bg.onclick = e => { if(e.target===bg) bg.remove(); };
@@ -1391,7 +1428,7 @@ function editJob(j){
       tags:[...new Set((res.match(/#[\w-]+/g)||[]).map(t=>t.toUpperCase()))],
       start:st.replace('T',' '), end:en.replace('T',' '),
       durationMin:(st && en) ? Math.round((new Date(en)-new Date(st))/60000) : '',
-      aglWo:wo, aglAt: wo ? (j.aglAt || now) : null, eamAt: q('eam').checked ? (j.eamAt || now) : null};
+      aglWo:wo, aglAt: wo ? (j.aglAt || now) : null, eamWo:q('eamWo').value.trim(), eamAt: (q('eam').checked || q('eamWo').value.trim()) ? (j.eamAt || now) : null};
     bg.querySelector('[data-save]').disabled = true;
     const ok = await updateJob(j, ch); bg.remove(); renderDash(); if(ok) toast('Job updated');
   };
@@ -1402,11 +1439,23 @@ function editJob(j){
 let woChecking = false;
 async function checkWoClipboard(){
   if(woChecking || !document.hasFocus() || !navigator.clipboard?.readText) return;
-  const waiting = [...logs, ...dashJobs].some(j => j.agilityAt && !j.aglWo);
+  const waiting = [...logs, ...dashJobs].some(j => (j.agilityAt && !j.aglWo) || (j.snAt && !j.eamAt));
   if(!waiting) return;
   woChecking = true;
   try{
     const t = (await navigator.clipboard.readText()).trim();
+    if(t.startsWith('REPAIRLOGGER-EAM:')){
+      const d = JSON.parse(t.slice(17));
+      if(!dashJobs.length) await loadDashboard();
+      const j = dashJobs.find(x => x.id===d.id) || logs.find(x => x.id===d.id) || dashJobs.find(x => x.asset===d.asset && x.snAt && !x.eamAt);
+      if(!j){ toast('ServiceNow number copied, but its job wasn’t found'); return; }
+      const now = localInput(new Date()).replace('T',' ');
+      const ok = await updateJob(j, {eamWo: d.wo || '', eamAt: now, status: 'completed', completedAt: now});
+      try{ await navigator.clipboard.writeText(d.wo || ''); }catch{}
+      if(currentTab==='dash') renderDash();
+      if(ok) toast(`${j.asset}: EAM done${d.wo ? ' ('+d.wo+')' : ''}, moved to Completed`);
+      return;
+    }
     if(!t.startsWith('REPAIRLOGGER-WO:')) return;
     const d = JSON.parse(t.slice(16));
     if(!dashJobs.length) await loadDashboard();
@@ -1621,9 +1670,26 @@ function extensionContentScript(core){
   return `// Fill AGL extension ${core.ver} for Repair Logger.
 // Adds a "⚡ Fill AGL" button to Agility pages. Clicking it fills the form from a job copied in
 // Repair Logger (→ AGL). It only fills fields and ticks "Decouple Asset?"; it never submits or clicks Complete.
+// On ServiceNow it adds "⚡ Fill EAM" instead (→ EAM). It never submits there either.
+const RL_SN_HOST = '';
 (() => {
-  if (window.top !== window || document.getElementById('rl-fill-agl-btn')) return;
+  if (document.getElementById('rl-fill-agl-btn')) return;
   ${core.src.replace(/^const FILL_AGL_VERSION.*$/m,'').replace('APPVER', core.ver+' extension')}
+  const isSN = /service-now|servicenow/i.test(location.hostname) || (RL_SN_HOST && location.hostname === RL_SN_HOST);
+  if (isSN) {
+    // ServiceNow: only in the frame that holds a record form
+    const hasForm = !!document.querySelector('form [id^="sys_display."], form .form-group, #sysverb_insert, #sysverb_update, [id^="sys_readonly."]');
+    if (typeof serviceNowFiller !== 'function' || (!hasForm && window.top !== window)) return;
+    if (hasForm && window.top !== window && window.top.document.getElementById('rl-fill-agl-btn')) return;
+    const s = document.createElement('button');
+    s.id = 'rl-fill-agl-btn'; s.textContent = '⚡ Fill EAM'; s.title = 'Fill this ServiceNow Work Order from the job copied in Repair Logger (→ EAM)';
+    s.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:2147483646;padding:10px 16px;border:none;border-radius:999px;background:#7c3aed;color:#fff;font:600 14px Segoe UI,Arial,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.3);cursor:pointer';
+    s.onclick = () => serviceNowFiller();
+    document.body.appendChild(s);
+    if (typeof snWatchSubmit === 'function') snWatchSubmit();
+    return;
+  }
+  if (window.top !== window) return;
   const b = document.createElement('button');
   b.id = 'rl-fill-agl-btn';
   b.textContent = '⚡ Fill AGL';
@@ -1640,14 +1706,21 @@ function userScript(core){
 // @name         Fill AGL (Repair Logger)
 // @namespace    repair-logger
 // @version      ${core.ver}
-// @description  Adds a Fill AGL button to Agility forms that fills fields from a job copied in Repair Logger. Never submits the form.
+// @description  Adds Fill AGL (Agility) and Fill EAM (ServiceNow) buttons that fill forms from a job copied in Repair Logger. Never submits.
 // @match        *://agility/*
 // @match        *://agility.*/*
+// @match        *://*.service-now.com/*
+// @match        *://*.servicenowservices.com/*
 // @grant        none
 // @run-at       document-idle
-// @noframes
 // ==/UserScript==
 ` + extensionContentScript(core);
+}
+function snHost(){ try{ return settings.snNewUrl ? new URL(settings.snNewUrl).hostname : ''; }catch{ return ''; } }
+function withSnHost(src){
+  const h = snHost();
+  if(!h || /service-now\.com$|servicenowservices\.com$/i.test(h)) return src;
+  return src.replace('// @grant        none', '// @match        *://'+h+'/*\n// @grant        none').replace("const RL_SN_HOST = '';", "const RL_SN_HOST = '"+h.replace(/'/g,'')+"';");
 }
 async function getEncrypted(path){
   const enc = await ghGetBytes(settings.ghRepo, ghBranch(), path);
@@ -1689,7 +1762,7 @@ async function renderDash(){
   $('cntOpen').textContent = '('+open.length+')'; $('cntDone').textContent = '('+done.length+')';
   $('thDone').classList.toggle('hidden', dashView!=='completed');
   let rows = dashView==='completed' ? done : open;
-  if(q) rows = rows.filter(j=>[j.room,j.asset,j.fault,j.resolution,(j.tags||[]).join(' '),j.aglWo].join(' ').toLowerCase().includes(q));
+  if(q) rows = rows.filter(j=>[j.room,j.asset,j.fault,j.resolution,(j.tags||[]).join(' '),j.aglWo,j.eamWo].join(' ').toLowerCase().includes(q));
   const body=$('dashBody'); body.innerHTML='';
   if(!rows.length){ body.innerHTML=`<tr><td colspan="12" class="empty">${q?'No matches.':dashView==='completed'?'No completed jobs yet.':'No open jobs.'}</td></tr>`; return; }
   for(const j of rows){
@@ -1701,6 +1774,7 @@ async function renderDash(){
     const woTd = cell(j.aglWo||'');
     if(j.aglWo) woTd.insertAdjacentHTML('beforeend','<span class="stage agl" title="AGL done '+fmt(j.aglAt||'')+'">AGL ✓</span>');
     if(j.eamAt) woTd.insertAdjacentHTML('beforeend','<span class="stage eam" title="EAM done '+fmt(j.eamAt)+'">EAM ✓</span>');
+    if(j.eamWo){ const d=document.createElement('div'); d.style.cssText='font-size:12px;margin-top:3px'; d.textContent=j.eamWo; woTd.appendChild(d); }
     tr.append(woTd);
     const tdDone = dcell(j.completedAt); if(dashView!=='completed') tdDone.classList.add('hidden'); tr.append(tdDone);
     const act=document.createElement('td'); act.className='act'; const actb=document.createElement('div'); actb.className='actbtns'; act.appendChild(actb);
@@ -1717,8 +1791,8 @@ async function renderDash(){
     const btns = [b];
     if(dashView!=='completed'){
       btns.push(ag);
-      if(j.aglWo && !j.eamAt){ const em=document.createElement('button'); em.type='button'; em.className='btn small eam'; em.textContent='EAM done';
-        em.title='ServiceNow / EAM entry done: marks EAM ✓ and moves the job to Completed'; em.onclick = () => { em.disabled=true; markEam(j); }; btns.push(em); }
+      if(j.aglWo && !j.eamAt){ const em=document.createElement('button'); em.type='button'; em.className='btn small eam'; em.textContent = j.snAt ? '✓ EAM' : '→ EAM';
+        em.title='Copy this job for ⚡ Fill EAM on a new ServiceNow Work Order'; em.onclick = () => sendToEam(j); btns.push(em); }
     }
     btns.push(ed, cr);
     actb.append(...btns); tr.append(act);
@@ -1746,7 +1820,7 @@ function bindSettings(){
     r.checked = r.value===settings.mode;
     r.onchange = () => { settings.mode=r.value; saveSettings(); showModeSettings(); };
   });
-  ['defaultRoom','odFolder','odFile','odClient','odTenant','shareFile','ghOwner','ghRepo','ghBranch','ghFolder','appRepo','appBranch','appPath','agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom','agRoomUncheck','agRoomPrefix','agTriage','agAssetTag','agResponse','agResponseMins','agWaitRoom','agWaitDecouple','agWaitEquipment','agWaitDropdown','agWaitMes','agWaitFields'].forEach(k=>{
+  ['defaultRoom','odFolder','odFile','odClient','odTenant','shareFile','ghOwner','ghRepo','ghBranch','ghFolder','appRepo','appBranch','appPath','agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom','agRoomUncheck','agRoomPrefix','agTriage','agAssetTag','agResponse','agResponseMins','agWaitRoom','agWaitDecouple','agWaitEquipment','agWaitDropdown','agWaitMes','agWaitFields','snNewUrl','snAssignee','snAsset','snAssigned','snSummary','snInfo','snAglRef','snWait','snTable','snKeepValues'].forEach(k=>{
     $(k).value = settings[k]||'';
     $(k).addEventListener('change', ()=>{ settings[k]=$(k).value.trim(); saveSettings(); renderSaveLoc(); });
   });
@@ -1768,7 +1842,8 @@ function bindSettings(){
     if(!coreReady()) return;
     extStatus('Fetching the script from your private repository…');
     try{
-      const {src, ver} = await loadScript();
+      let {src, ver} = await loadScript();
+      src = withSnHost(src);
       download(new File([src], 'fill-agl-tampermonkey.txt', {type:'text/plain'}));
       extStatus('✓ Downloaded fill-agl-tampermonkey.txt ('+ver+'). Open it, copy all, and paste into Tampermonkey.', 'ok');
     }catch(e){ extStatus('Could not download: '+e.message, 'err'); }
@@ -1778,8 +1853,8 @@ function bindSettings(){
     saveSettings(); toast('Agility fields reset');
   };
   $('setupLinkBtn').onclick = async () => {
-    const {defaultRoom, mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom, agRoomUncheck, agRoomPrefix, agTriage, agAssetTag, agResponse, agResponseMins, agWaitRoom, agWaitDecouple, agWaitEquipment, agWaitDropdown, agWaitMes, agWaitFields, agHelper, agAutoComplete} = settings;
-    const enc = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({defaultRoom, mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom, agRoomUncheck, agRoomPrefix, agTriage, agAssetTag, agResponse, agResponseMins, agWaitRoom, agWaitDecouple, agWaitEquipment, agWaitDropdown, agWaitMes, agWaitFields, agHelper, agAutoComplete})))));
+    const {defaultRoom, mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom, agRoomUncheck, agRoomPrefix, agTriage, agAssetTag, agResponse, agResponseMins, agWaitRoom, agWaitDecouple, agWaitEquipment, agWaitDropdown, agWaitMes, agWaitFields, agHelper, agAutoComplete, snNewUrl, snAssignee, snAsset, snAssigned, snSummary, snInfo, snAglRef, snWait, snTable, snKeepValues} = settings;
+    const enc = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({defaultRoom, mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom, agRoomUncheck, agRoomPrefix, agTriage, agAssetTag, agResponse, agResponseMins, agWaitRoom, agWaitDecouple, agWaitEquipment, agWaitDropdown, agWaitMes, agWaitFields, agHelper, agAutoComplete, snNewUrl, snAssignee, snAsset, snAssigned, snSummary, snInfo, snAglRef, snWait, snTable, snKeepValues})))));
     const link = redirectUri+'#cfg='+enc;
     try{ await navigator.clipboard.writeText(link); toast('Setup link copied'); }catch{ prompt('Copy this link:', link); }
   };
