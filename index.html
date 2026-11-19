@@ -478,10 +478,16 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 
   <div class="card">
     <h2>Fill EAM (ServiceNow)</h2>
-    <div class="hint" style="margin:0 0 10px">After a job has its AGL WO#, press <b>→ EAM</b> on the Dashboard, then <b>⚡ Fill EAM</b> in ServiceNow (same Tampermonkey script). It works from any ServiceNow page and shows what it will create; nothing happens until you press <b>Create Work Order</b>. It uses your ServiceNow login in Edge (the same method as Service Report Helper); no password is stored. The new number comes back and the job is marked EAM done. <b>Fill the form instead</b> is there as a backup.</div>
+    <div class="hint" style="margin:0 0 10px"><b>Set this up on the PC you use for ServiceNow</b> (no Tampermonkey needed; Tampermonkey is only for Agility). After a job has its AGL WO#, press <b>→ EAM</b> on the Dashboard, then click the <b>⚡ Fill EAM</b> bookmark in ServiceNow. It works from any ServiceNow page and shows what it will create; nothing happens until you press <b>Create Work Order</b>. It uses your ServiceNow login in Edge (the same method as Service Report Helper); no password is stored. The new number comes back and the job is marked EAM done. <b>Fill the form instead</b> is there as a backup.</div>
+    <div class="field">
+      <label>⚡ Fill EAM bookmark (no Tampermonkey needed)</label>
+      <div class="row"><button class="btn" id="mkEamBm" type="button">Make the bookmark</button><a class="btn primary hidden" id="eamBm" href="#">⚡ Fill EAM</a><button class="btn hidden" id="copyEamBm" type="button">Copy bookmark code</button></div>
+      <div class="status" id="eamBmStatus"></div>
+      <div class="hint">Like Service Report Helper’s EAM link. Press <b>Make the bookmark</b> (it is built from the script in your private repository), then drag <b>⚡ Fill EAM</b> onto the bookmarks bar (Ctrl+Shift+B shows it). In ServiceNow, click the bookmark. If → EAM opened the ServiceNow tab, the job and the new number pass directly between the two tabs.</div>
+    </div>
     <div class="field"><label for="snNewUrl">ServiceNow “new Work Order” link (optional)</label>
       <input id="snNewUrl" placeholder="https://healthineers.service-now.com/" autocapitalize="off" spellcheck="false">
-      <div class="hint">Open a new Work Order in ServiceNow, copy the address bar and paste it here. → EAM then opens it for you. If your ServiceNow address doesn’t end in service-now.com, download the Tampermonkey script again after saving this so it runs there.</div></div>
+      <div class="hint">Open a new Work Order in ServiceNow, copy the address bar and paste it here. → EAM then opens it for you. </div></div>
     <div class="field"><label for="snAssignee">Assigned To</label><input id="snAssignee" placeholder="Keith Nissanka"></div>
     <label>Which ServiceNow field gets what</label>
     <div class="hint" style="margin:0 0 8px">Field names as shown on the form. Several names separated by commas: the first one found is used.</div>
@@ -506,7 +512,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 
 <script>
 (async () => {
-const APP_VERSION = '2.14.0';
+const APP_VERSION = '2.15.1';
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -1391,8 +1397,9 @@ async function sendToEam(j){
   const text = snPayload(j);
   try{ await navigator.clipboard.writeText(text); }
   catch{ const t=document.createElement('textarea'); t.value=text; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
-  if(settings.snNewUrl) window.open(settings.snNewUrl, '_blank');
-  toast(`${j.asset} copied. Click ⚡ Fill EAM on the ServiceNow Work Order.`);
+  pendingSn = text;
+  if(settings.snNewUrl) window.open(settings.snNewUrl, 'rl-servicenow');
+  toast(`${j.asset} ready. In ServiceNow click the ⚡ Fill EAM bookmark.`);
   if(!j.snAt){ await updateJob(j, {snAt: localInput(new Date()).replace('T',' ')}); renderDash(); }
 }
 async function markEam(j){
@@ -1436,6 +1443,24 @@ function editJob(j){
 }
 // AGL WO#: after the Agility form is completed, the Fill AGL script copies "REPAIRLOGGER-WO:{...}".
 // When you come back to Repair Logger, it is picked up and saved on the matching job.
+async function applyEam(d){
+  if(!dashJobs.length) await loadDashboard();
+  const j = dashJobs.find(x => x.id===d.id) || logs.find(x => x.id===d.id) || dashJobs.find(x => x.asset===d.asset && x.snAt && !x.eamAt);
+  if(!j){ toast('ServiceNow number '+(d.wo||'')+' received, but its job wasn’t found'); return; }
+  if(j.eamAt && j.eamWo===d.wo) return;
+  const now = localInput(new Date()).replace('T',' ');
+  const ok = await updateJob(j, {eamWo: d.wo || '', eamAt: now, status: 'completed', completedAt: now});
+  if(currentTab==='dash') renderDash();
+  if(ok) toast(`${j.asset}: EAM done${d.wo ? ' ('+d.wo+')' : ''}, moved to Completed`);
+}
+// Direct link with the ServiceNow tab that → EAM opened (like Service Report Helper's EAM link)
+let pendingSn = null;
+const isSnOrigin = o => { try{ const h = new URL(o).hostname; return /(^|\.)service-now\.com$|(^|\.)servicenowservices\.com$/i.test(h) || (snHost() && h===snHost()); }catch{ return false; } };
+window.addEventListener('message', e => {
+  if(!e.data || !e.data.rl || !isSnOrigin(e.origin)) return;
+  if(e.data.rl==='hello' && pendingSn && e.source) e.source.postMessage({rl:'job', text:pendingSn}, e.origin);
+  if(e.data.rl==='eam') applyEam(e.data);
+});
 let woChecking = false;
 async function checkWoClipboard(){
   if(woChecking || !document.hasFocus() || !navigator.clipboard?.readText) return;
@@ -1444,8 +1469,9 @@ async function checkWoClipboard(){
   woChecking = true;
   try{
     const t = (await navigator.clipboard.readText()).trim();
-    if(t.startsWith('REPAIRLOGGER-EAM:')){
-      const d = JSON.parse(t.slice(17));
+    if(t.startsWith('REPAIRLOGGER-EAM:')){ await applyEam(JSON.parse(t.slice(17))); try{ await navigator.clipboard.writeText(JSON.parse(t.slice(17)).wo || ''); }catch{} return; }
+    if(false){
+      const d = {};
       if(!dashJobs.length) await loadDashboard();
       const j = dashJobs.find(x => x.id===d.id) || logs.find(x => x.id===d.id) || dashJobs.find(x => x.asset===d.asset && x.snAt && !x.eamAt);
       if(!j){ toast('ServiceNow number copied, but its job wasn’t found'); return; }
@@ -1670,13 +1696,10 @@ function extensionContentScript(core){
   return `// Fill AGL extension ${core.ver} for Repair Logger.
 // Adds a "⚡ Fill AGL" button to Agility pages. Clicking it fills the form from a job copied in
 // Repair Logger (→ AGL). It only fills fields and ticks "Decouple Asset?"; it never submits or clicks Complete.
-// On ServiceNow it adds "⚡ Fill EAM" instead (→ EAM). It never submits there either.
-const RL_SN_HOST = '';
 (() => {
   if (document.getElementById('rl-fill-agl-btn')) return;
   ${core.src.replace(/^const FILL_AGL_VERSION.*$/m,'').replace('APPVER', core.ver+' extension')}
-  const isSN = /service-now|servicenow/i.test(location.hostname) || (RL_SN_HOST && location.hostname === RL_SN_HOST);
-  if (isSN) {
+  if (false) { // ServiceNow is done with the ⚡ Fill EAM bookmark, not Tampermonkey
     // ServiceNow: only in the frame that holds a record form
     const hasForm = !!document.querySelector('form [id^="sys_display."], form .form-group, #sysverb_insert, #sysverb_update, [id^="sys_readonly."]');
     if (typeof serviceNowFiller !== 'function' || (!hasForm && window.top !== window)) return;
@@ -1706,11 +1729,9 @@ function userScript(core){
 // @name         Fill AGL (Repair Logger)
 // @namespace    repair-logger
 // @version      ${core.ver}
-// @description  Adds Fill AGL (Agility) and Fill EAM (ServiceNow) buttons that fill forms from a job copied in Repair Logger. Never submits.
+// @description  Adds a Fill AGL button to Agility forms that fills fields from a job copied in Repair Logger. Never submits the form.
 // @match        *://agility/*
 // @match        *://agility.*/*
-// @match        *://*.service-now.com/*
-// @match        *://*.servicenowservices.com/*
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==
@@ -1837,13 +1858,28 @@ function bindSettings(){
   $('agHelper').checked = settings.agHelper !== false;
   $('agHelper').onchange = () => { settings.agHelper = $('agHelper').checked; saveSettings(); toast(settings.agHelper ? 'Copy helper on' : 'Copy helper off'); };
   $('upScriptBtn').onclick = () => { if(!coreReady()) return; $('scriptFile').click(); };
+  $('mkEamBm').onclick = async () => {
+    const st = $('eamBmStatus'); st.style.color = 'var(--muted)';
+    if(!ghConfigured() || !cryptoKeys){ st.textContent = 'Needs your GitHub account and encryption key on this device (see above).'; st.style.color='var(--warn)'; return; }
+    st.textContent = 'Building from your private repository…';
+    try{
+      const {src, ver} = await loadScript();
+      const i = src.indexOf('// ======================= ServiceNow / EAM');
+      if(i < 0 || src.indexOf('// ======================= end ServiceNow') < 0) throw new Error('the stored script is too old. Upload the latest fill-agl-tampermonkey.txt first');
+      let snPart = src.slice(i); const end = snPart.indexOf('// ======================= end ServiceNow'); if(end > 0) snPart = snPart.slice(0, end);
+      const code = 'javascript:' + encodeURIComponent('(function(){' + snPart + '\nserviceNowFiller();})()');
+      $('eamBm').href = code; $('eamBm').classList.remove('hidden'); $('copyEamBm').classList.remove('hidden');
+      $('eamBm').onclick = e => { e.preventDefault(); toast('Drag this to your bookmarks bar. Don’t click it here.'); };
+      $('copyEamBm').onclick = async () => { try{ await navigator.clipboard.writeText(code); toast('Bookmark code copied'); }catch{ prompt('Copy this bookmark code:', code); } };
+      st.textContent = '✓ Bookmark ready (script '+ver+'). Drag ⚡ Fill EAM to your bookmarks bar.'; st.style.color='var(--ok)';
+    }catch(e){ st.textContent = 'Could not make it: '+e.message; st.style.color='var(--err)'; }
+  };
   $('scriptFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value=''; if(f) uploadScript(f); });
   $('dlUserScriptBtn').onclick = async () => {
     if(!coreReady()) return;
     extStatus('Fetching the script from your private repository…');
     try{
       let {src, ver} = await loadScript();
-      src = withSnHost(src);
       download(new File([src], 'fill-agl-tampermonkey.txt', {type:'text/plain'}));
       extStatus('✓ Downloaded fill-agl-tampermonkey.txt ('+ver+'). Open it, copy all, and paste into Tampermonkey.', 'ok');
     }catch(e){ extStatus('Could not download: '+e.message, 'err'); }
