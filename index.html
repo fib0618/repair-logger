@@ -1,0 +1,1450 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Repair Logger">
+<title>Repair Logger</title>
+<style>
+:root{
+  --bg:#f4f5f7; --card:#fff; --text:#16181d; --muted:#6b7280; --line:#e2e5ea;
+  --accent:#0a66d8; --accent-text:#fff; --ok:#15803d; --warn:#b45309; --err:#b91c1c;
+  --chip:#eef3fb; --chip-text:#0a4ea8; --row-alt:#fafbfc;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#0f1115; --card:#181b21; --text:#eceef2; --muted:#9aa1ad; --line:#2a2f38;
+    --accent:#3b8cff; --chip:#1d2a3d; --chip-text:#9cc4ff; --row-alt:#1c2027; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  padding:env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 16px)}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 6px;max-width:1400px;margin:0 auto}
+header h1{font-size:22px;margin:0}
+.hdr-right{display:flex;align-items:center;gap:10px}
+.gear{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--text);display:grid;place-items:center;padding:0}
+.gear.active{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+.loc{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:15px}
+.loc dt{color:var(--muted)} .loc dd{margin:0;word-break:break-word;font-weight:600}
+.settings-head{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px}
+.settings-head h2{margin:0;font-size:20px}
+.tabs{display:flex;gap:6px;padding:6px 16px 10px;max-width:1400px;margin:0 auto}
+.tabs button{flex:1;padding:9px 4px;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:10px;font-size:15px}
+.tabs button.active{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+main{padding:0 16px;margin:0 auto}
+main section{max-width:640px;margin:0 auto}
+main section#tab-dash{max-width:1400px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+label{display:block;font-weight:600;font-size:14px;margin:0 0 6px}
+.field{margin-bottom:14px}
+input,textarea,select{width:100%;font:inherit;font-size:16px;color:var(--text);background:var(--bg);
+  border:1px solid var(--line);border-radius:10px;padding:11px 12px}
+textarea{min-height:84px;resize:vertical}
+.row{display:flex;gap:8px;align-items:stretch;flex-wrap:wrap}
+.row > input{flex:1;min-width:0}
+button{font:inherit;cursor:pointer}
+.btn{padding:11px 14px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);white-space:nowrap}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-text);font-weight:600}
+.btn.block{width:100%;padding:14px;font-size:17px}
+.btn.small{padding:6px 10px;font-size:14px}
+.btn.danger{color:var(--err)}
+.btn:disabled{opacity:.5}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.chip{padding:7px 12px;border-radius:999px;background:var(--chip);color:var(--chip-text);border:none;font-weight:600;font-size:15px}
+.chip.on{background:var(--accent);color:var(--accent-text)}
+.chip .x{margin-left:6px;opacity:.7}
+.hint{color:var(--muted);font-size:13px;margin-top:6px}
+#scanner{display:none;margin-top:10px;border-radius:12px;overflow:hidden}
+#scanner.on{display:block}
+#toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 20px);transform:translateX(-50%);
+  background:#222;color:#fff;padding:10px 16px;border-radius:10px;font-size:15px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90%;text-align:center;z-index:10}
+#toast.show{opacity:1}
+.thumbs{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.thumb{position:relative;width:76px;height:76px;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb button{position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;border:none;background:rgba(0,0,0,.65);color:#fff;font-size:12px;line-height:22px;padding:0}
+.log{border-bottom:1px solid var(--line);padding:10px 0}
+.log:last-child{border-bottom:none}
+.log .top{display:flex;justify-content:space-between;gap:8px}
+.log .asset{font-weight:700}
+.badge{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+.badge.synced{color:var(--ok)} .badge.pending{color:var(--warn)} .badge.done{color:var(--muted)}
+.log .meta{color:var(--muted);font-size:13px}
+.log .txt{font-size:14px;margin-top:4px;white-space:pre-wrap}
+.status{font-size:14px;margin-top:8px}
+.hidden{display:none!important}
+h2{font-size:17px;margin:0 0 10px}
+.radio{display:flex;gap:10px;align-items:flex-start;margin:8px 0;font-weight:400}
+.radio input{width:auto;margin-top:4px}
+code{font-size:13px;word-break:break-all}
+/* Dashboard */
+.dash-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.dash-bar input{flex:1;min-width:180px}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{border:none;background:var(--card);color:var(--text);padding:10px 14px}
+.seg button.active{background:var(--accent);color:var(--accent-text)}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{position:sticky;top:0;background:var(--card);font-size:12px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);white-space:nowrap}
+tbody tr:nth-child(even){background:var(--row-alt)}
+td .cell{display:flex;gap:6px;align-items:flex-start}
+td .val{flex:1;white-space:pre-wrap;word-break:break-word;min-width:60px}
+td.wide .val{min-width:180px}
+.copy{flex:none;border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:7px;width:28px;height:26px;padding:0;font-size:13px}
+.copy.ok{color:var(--ok);border-color:var(--ok)}
+td .pthumbs{display:flex;gap:4px;flex-wrap:wrap}
+td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+.empty{padding:24px;text-align:center;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Repair Logger</h1>
+  <div class="hdr-right">
+    <span id="pendingBadge" class="badge pending hidden"></span>
+    <button class="gear" id="gearBtn" type="button" aria-label="Settings" title="Settings">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
+</header>
+<div class="tabs">
+  <button data-tab="log" class="active">Log job</button>
+  <button data-tab="history">History</button>
+  <button data-tab="dash">Dashboard</button>
+</div>
+
+<main>
+<!-- LOG JOB -->
+<section id="tab-log">
+  <div class="card">
+    <div class="field">
+      <label for="asset">Asset ID</label>
+      <div class="row">
+        <input id="asset" autocomplete="off" autocapitalize="characters" placeholder="Scan or type asset code">
+        <button class="btn primary" id="scanBtn" type="button">📷 Scan</button>
+      </div>
+      <div id="scanner"></div>
+      <div id="scanReader" class="hidden"></div>
+      <input id="scanPhoto" type="file" accept="image/*" capture="environment" class="hidden">
+      <div class="status hidden" id="scanMsg"></div>
+    </div>
+    <div class="field">
+      <label for="fault">Fault</label>
+      <textarea id="fault" placeholder="Describe the fault"></textarea>
+    </div>
+    <div class="field">
+      <label for="resolution">Resolution</label>
+      <textarea id="resolution" placeholder="What was done"></textarea>
+      <div class="chips" id="tagChips"></div>
+      <div class="hint">Tap a tag to add or remove it.</div>
+    </div>
+    <div class="field">
+      <label for="end">End time</label>
+      <div class="row">
+        <input id="end" type="datetime-local">
+        <button class="btn" id="nowBtn" type="button">Now</button>
+      </div>
+      <div class="hint">Set automatically when you scan an asset.</div>
+    </div>
+    <div class="field">
+      <label>Job duration</label>
+      <div class="chips" id="durChips"></div>
+    </div>
+    <div class="field">
+      <label for="start">Start time</label>
+      <input id="start" type="datetime-local">
+      <div class="hint">End time minus the duration. You can still edit it.</div>
+    </div>
+    <div class="field">
+      <label>Photos</label>
+      <div class="row">
+        <button class="btn" id="takePhotoBtn" type="button">📸 Take photo</button>
+        <button class="btn" id="pickPhotoBtn" type="button">🖼 Choose</button>
+      </div>
+      <input id="photoCam" type="file" accept="image/*" capture="environment" class="hidden">
+      <input id="photoPick" type="file" accept="image/*" multiple class="hidden">
+      <div class="thumbs" id="photoThumbs"></div>
+    </div>
+    <button class="btn primary block" id="saveBtn" type="button">Save job</button>
+    <div class="status" id="saveStatus"></div>
+    <div class="hint" id="saveLocHint"></div>
+  </div>
+</section>
+
+<!-- HISTORY (this device) -->
+<section id="tab-history" class="hidden">
+  <div class="card">
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn" id="syncBtn" type="button">Retry pending</button>
+      <button class="btn" id="exportBtn" type="button">Export all CSV</button>
+    </div>
+    <div id="logList"></div>
+  </div>
+</section>
+
+<!-- DASHBOARD -->
+<section id="tab-dash" class="hidden">
+  <div class="dash-bar">
+    <div class="seg">
+      <button id="segOpen" class="active" type="button">Open <span id="cntOpen"></span></button>
+      <button id="segDone" type="button">Completed <span id="cntDone"></span></button>
+    </div>
+    <input id="dashSearch" placeholder="Search asset, fault, resolution, tag…">
+    <button class="btn" id="dashRefresh" type="button">↻ Refresh</button>
+    <button class="btn" id="dashExport" type="button">⬇ Export CSV</button>
+  </div>
+  <div class="hint" id="dashSource" style="margin:-4px 0 10px"></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>Asset ID</th><th>Fault</th><th>Resolution</th><th>Tags</th>
+        <th>Start</th><th>End</th><th>Mins</th><th>Photos</th><th id="thDone">Completed</th><th></th>
+      </tr></thead>
+      <tbody id="dashBody"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- SETTINGS -->
+<section id="tab-settings" class="hidden">
+  <div class="settings-head">
+    <h2>Settings</h2>
+    <button class="btn primary" id="settingsDone" type="button">Done</button>
+  </div>
+  <div class="card">
+    <h2>Where jobs are saved</h2>
+    <dl class="loc" id="saveLocInfo"></dl>
+    <div class="row" style="margin-top:12px">
+      <a class="btn hidden" id="openFolderLink" target="_blank" rel="noopener">Open folder in OneDrive</a>
+    </div>
+    <div class="hint">Change this under “Save location” below.</div>
+  </div>
+  <div class="card">
+    <h2>Resolution tags</h2>
+    <div class="row">
+      <input id="newTag" placeholder="#NEWTAG" autocapitalize="characters">
+      <button class="btn primary" id="addTagBtn" type="button">Add</button>
+    </div>
+    <div class="chips" id="tagEditor"></div>
+    <div class="hint">Tap a tag to delete it.</div>
+  </div>
+
+  <div class="card">
+    <h2>Save location</h2>
+    <label class="radio"><input type="radio" name="mode" value="onedrive">
+      <span><b>OneDrive (automatic)</b><br><span class="hint">Writes straight to a folder in your OneDrive, including photos. Works on iPhone and PC, so phone jobs show up on the PC dashboard. Needs a one-time Microsoft sign-in.</span></span></label>
+    <label class="radio"><input type="radio" name="mode" value="github">
+      <span><b>GitHub (encrypted)</b><br><span class="hint">Saves to a private GitHub repository. Jobs and photos are encrypted on this device with your key before upload, so GitHub only ever sees scrambled data. Works on iPhone and PC.</span></span></label>
+    <label class="radio"><input type="radio" name="mode" value="folder" id="modeFolder">
+      <span><b>Folder on this computer (browse)</b><br><span class="hint" id="folderModeHint">Pick any folder, e.g. your OneDrive folder in File Explorer. Jobs, photos and the CSV are written there. Works in Chrome or Edge on a PC; not available on iPhone.</span></span></label>
+    <label class="radio"><input type="radio" name="mode" value="share">
+      <span><b>Share sheet</b><br><span class="hint">Each save opens the iPhone share sheet. Choose “Save to Files” → OneDrive → any folder.</span></span></label>
+    <label class="radio"><input type="radio" name="mode" value="local">
+      <span><b>This device only</b><br><span class="hint">Keep jobs here and export a CSV from History when you want it.</span></span></label>
+
+    <div id="folderSettings" style="margin-top:12px">
+      <label>Folder</label>
+      <div class="row">
+        <input id="folderName" readonly placeholder="No folder chosen">
+        <button class="btn primary" id="browseBtn" type="button">📁 Browse…</button>
+      </div>
+      <div class="hint">Inside it the app makes <code>jobs/</code> and <code>photos/</code> folders and a CSV log. The browser may ask you to allow access again after a restart.</div>
+    </div>
+    <div class="field" id="csvField" style="margin-top:12px">
+      <label for="odFile">CSV log file name</label>
+      <input id="odFile" placeholder="RepairLog_{yyyy}-{MM}.csv">
+      <div class="hint"><code>{yyyy}</code> <code>{MM}</code> <code>{dd}</code> are replaced with the date. Each job is also added as a row here, for Excel.</div>
+    </div>
+    <div id="ghSettings" style="margin-top:12px">
+      <div class="field">
+        <label for="ghRepo">Data repository</label>
+        <input id="ghRepo" placeholder="repair-logs" autocapitalize="off" autocomplete="off" spellcheck="false">
+        <div class="hint">A <b>private</b> repository in your GitHub account. Create it on github.com first and tick “Add a README file”. Your username and token go under <b>GitHub account</b> below.</div>
+      </div>
+      <div class="row">
+        <div class="field" style="flex:1;min-width:120px"><label for="ghBranch">Branch</label><input id="ghBranch" placeholder="main" autocapitalize="off"></div>
+        <div class="field" style="flex:2;min-width:160px"><label for="ghFolder">Folder in repository (optional)</label><input id="ghFolder" placeholder="e.g. logs" autocapitalize="off"></div>
+      </div>
+      <div class="hint">No CSV is written to GitHub, because it would have to be stored readable. Use <b>Export CSV</b> on the Dashboard instead; it decrypts on your device.</div>
+    </div>
+    <div id="odSettings">
+      <div class="field" style="margin-top:12px">
+        <label for="odFolder">OneDrive folder</label>
+        <input id="odFolder" placeholder="Repair Logs">
+        <div class="hint">Path from the root of your OneDrive, e.g. <code>Work/Repair Logs</code>. Missing folders are created. Jobs go in <code>jobs/</code>, photos in <code>photos/</code>.</div>
+      </div>
+      <div class="field">
+        <label for="odClient">Azure app client ID</label>
+        <input id="odClient" placeholder="00000000-0000-0000-0000-000000000000" autocapitalize="off">
+      </div>
+      <div class="field">
+        <label for="odTenant">Account type</label>
+        <select id="odTenant">
+          <option value="common">Personal or work/school</option>
+          <option value="consumers">Personal only</option>
+          <option value="organizations">Work/school only</option>
+        </select>
+      </div>
+      <div class="row">
+        <button class="btn primary" id="signInBtn" type="button">Sign in to Microsoft</button>
+        <button class="btn" id="signOutBtn" type="button">Sign out</button>
+      </div>
+      <div class="status" id="odStatus"></div>
+      <div class="hint">Redirect URI to register in Azure (type “Single-page application”): <code id="redirectUri"></code></div>
+    </div>
+    <div class="field" id="shareSettings" style="margin-top:12px">
+      <label for="shareFile">Shared file name</label>
+      <input id="shareFile" placeholder="Job_{asset}_{yyyy}-{MM}-{dd}.csv">
+    </div>
+  </div>
+
+  <div class="card" id="keyCard">
+    <h2>🔒 Encryption key</h2>
+    <div class="status" id="keyStatus" style="margin:0 0 10px"></div>
+    <div class="row">
+      <button class="btn primary" id="genKeyBtn" type="button">Generate new key</button>
+      <button class="btn" id="copyKeyBtn" type="button">Copy key</button>
+      <button class="btn" id="dlKeyBtn" type="button">Save key file</button>
+    </div>
+    <div class="field" style="margin-top:14px">
+      <label for="importKey">Use an existing key</label>
+      <div class="row">
+        <input id="importKey" placeholder="RLK1-…" autocapitalize="off" autocomplete="off" spellcheck="false">
+        <button class="btn" id="importKeyBtn" type="button">Use key</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" id="loadKeyFileBtn" type="button">📄 Open key file…</button>
+      </div>
+      <input type="file" id="keyFile" accept=".txt,.key,text/plain" class="hidden">
+      <div class="hint">On your other devices (PC, another phone), paste the same key or open the saved key file. All devices must use the same key.</div>
+    </div>
+    <div class="hint">The key is created on this device and stays here. It only leaves when you copy or save it. <b>If you lose the key, the data on GitHub can’t be recovered.</b> Keep the key file somewhere safe, such as a password manager.</div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn danger small" id="forgetKeyBtn" type="button">Remove key from this device</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>GitHub account</h2>
+    <div class="field">
+      <label for="ghOwner">GitHub username</label>
+      <input id="ghOwner" placeholder="your-username" autocapitalize="off" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="field">
+      <label for="ghTokenInput">Access token</label>
+      <input id="ghTokenInput" type="password" placeholder="github_pat_…" autocapitalize="off" autocomplete="off" spellcheck="false">
+      <div class="hint">On github.com go to Settings › Developer settings › Fine-grained tokens › Generate new token. Under Repository access choose <b>Only select repositories</b> and pick your data repository and app repository. Under Permissions set <b>Contents → Read and write</b>. Give it an expiry date. The token is stored only on this device.</div>
+    </div>
+    <div class="row">
+      <button class="btn" id="ghTestBtn" type="button">Test connection</button>
+      <button class="btn danger" id="ghForgetBtn" type="button">Remove token</button>
+    </div>
+    <div class="status" id="ghStatus"></div>
+  </div>
+
+  <div class="card">
+    <h2>Update app</h2>
+    <div style="margin-bottom:10px">Version on this device: <b id="appVersion"></b></div>
+    <div class="field">
+      <label for="appRepo">App repository (GitHub Pages)</label>
+      <input id="appRepo" placeholder="repair-logger" autocapitalize="off" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="row">
+      <div class="field" style="flex:1;min-width:120px"><label for="appBranch">Branch</label><input id="appBranch" placeholder="main" autocapitalize="off"></div>
+      <div class="field" style="flex:2;min-width:160px"><label for="appPath">File path</label><input id="appPath" placeholder="index.html" autocapitalize="off"></div>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="uploadAppBtn" type="button">⬆ Upload new version…</button>
+      <button class="btn" id="checkUpdateBtn" type="button">Check for update</button>
+      <button class="btn" id="reloadAppBtn" type="button">Reload app</button>
+    </div>
+    <input type="file" id="appFile" accept=".html,text/html" class="hidden">
+    <div class="status" id="appStatus"></div>
+    <div class="hint">Choose the new <code>index.html</code> you were given. It replaces the app on GitHub and GitHub Pages publishes it in about a minute. Then tap <b>Reload app</b> on each device. Uses the token from GitHub account.</div>
+  </div>
+
+  <div class="card">
+    <h2>Other devices</h2>
+    <button class="btn" id="setupLinkBtn" type="button">Copy setup link</button>
+    <div class="hint">Opens this app on another device with the same settings and tags. The GitHub token and encryption key are <b>not</b> included; add them on that device.</div>
+  </div>
+</section>
+</main>
+<div id="toast"></div>
+
+<script>
+(async () => {
+const APP_VERSION = '1.5.0';
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
+  set(k, v){ try{ localStorage.setItem('rl_'+k, JSON.stringify(v)); }catch{} }
+};
+
+const DEFAULT_SETTINGS = {
+  tags: ['#BIO','#RTO','#NFF'],
+  duration: 60,
+  mode: 'share',
+  odFolder: 'Repair Logs',
+  odFile: 'RepairLog_{yyyy}-{MM}.csv',
+  odClient: '',
+  ghOwner: '', ghRepo: 'repair-logs', ghBranch: 'main', ghFolder: '',
+  appRepo: 'repair-logger', appBranch: 'main', appPath: 'index.html',
+  odTenant: 'common',
+  shareFile: 'Job_{asset}_{yyyy}-{MM}-{dd}.csv'
+};
+// Import settings from a setup link (#cfg=...)
+(function importCfg(){
+  const m = location.hash.match(/cfg=([^&]+)/);
+  if(!m) return;
+  try{
+    const cfg = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1])))));
+    store.set('settings', Object.assign({}, DEFAULT_SETTINGS, store.get('settings',{}), cfg));
+    store.set('importedCfg', true);
+  }catch{}
+  history.replaceState(null,'',location.pathname+location.search);
+})();
+let settings = Object.assign({}, DEFAULT_SETTINGS, store.get('settings', {}));
+let logs = store.get('logs', []);
+logs.forEach(l => { l.status ||= 'open'; l.photos ||= []; });
+const saveSettings = () => store.set('settings', settings);
+const saveLogs = () => { store.set('logs', logs); renderPending(); };
+
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2600); }
+
+// ---------- IndexedDB for photo blobs ----------
+const idb = (() => {
+  let dbp;
+  const open = () => dbp ||= new Promise((res, rej) => {
+    const r = indexedDB.open('repairlogger', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('photos');
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+  const tx = async (mode, fn) => { const db = await open(); return new Promise((res, rej) => {
+    const t = db.transaction('photos', mode); const req = fn(t.objectStore('photos'));
+    t.oncomplete = () => res(req?.result); t.onerror = () => rej(t.error); }); };
+  return {
+    put: (k, v) => tx('readwrite', s => s.put(v, k)).catch(()=>{}),
+    get: k => tx('readonly', s => s.get(k)).catch(()=>null),
+    del: k => tx('readwrite', s => s.delete(k)).catch(()=>{})
+  };
+})();
+
+// ---------- Tabs ----------
+let currentTab = 'log', lastMainTab = 'log';
+function showTab(name){
+  if(name!=='settings') lastMainTab = name;
+  currentTab = name;
+  $('gearBtn').classList.toggle('active', name==='settings');
+  if(name==='settings') renderSaveLoc();
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('active', x.dataset.tab===name));
+  ['log','history','dash','settings'].forEach(t => $('tab-'+t).classList.toggle('hidden', t!==name));
+  if (name==='history') renderLogs();
+  if (name==='dash') loadDashboard();
+  if (name!=='log') stopScan();
+}
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+$('gearBtn').onclick = () => showTab(currentTab==='settings' ? lastMainTab : 'settings');
+$('settingsDone').onclick = () => showTab(lastMainTab);
+
+// ---------- Time helpers ----------
+const pad = n => String(n).padStart(2,'0');
+const localInput = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const fmt = s => {
+  if(!s) return '';
+  const d = new Date(String(s).replace(' ','T'));
+  if(isNaN(d)) return s;
+  const h = d.getHours();
+  return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${h%12||12}:${pad(d.getMinutes())} ${h<12?'AM':'PM'}`;
+};
+function fillName(tpl, job){
+  const d = new Date();
+  return tpl.replace(/\{yyyy\}/g,d.getFullYear()).replace(/\{MM\}/g,pad(d.getMonth()+1)).replace(/\{dd\}/g,pad(d.getDate()))
+    .replace(/\{asset\}/g,(job?.asset||'').replace(/[\\/:*?"<>|]/g,'_'));
+}
+
+// ---------- End / duration / start ----------
+const DURATIONS = [[30,'30 min'],[60,'1 hour'],[120,'2 hours'],[180,'3 hours']];
+function calcStart(){
+  const e = new Date($('end').value);
+  if(isNaN(e)) return;
+  $('start').value = localInput(new Date(e.getTime() - settings.duration*60000));
+  saveDraft();
+}
+function setEndNow(){ $('end').value = localInput(new Date()); calcStart(); }
+function renderDurChips(){
+  const c=$('durChips'); c.innerHTML='';
+  DURATIONS.forEach(([m,label])=>{
+    const b=document.createElement('button'); b.type='button';
+    b.className='chip'+(settings.duration===m?' on':''); b.textContent=label;
+    b.onclick=()=>{ settings.duration=m; saveSettings(); renderDurChips(); calcStart(); };
+    c.appendChild(b);
+  });
+}
+$('nowBtn').onclick = setEndNow;
+$('end').addEventListener('change', calcStart);
+
+// ---------- Draft (survives sign-in redirect / app close) ----------
+const fields = ['asset','fault','resolution','start','end'];
+function saveDraft(){ store.set('draft', Object.fromEntries(fields.map(f=>[f,$(f).value]))); }
+function loadDraft(){ const d=store.get('draft',null); fields.forEach(f=>$(f).value = d?.[f] || ''); if(!$('end').value) setEndNow(); }
+fields.forEach(f => $(f).addEventListener('input', () => { saveDraft(); if(f==='resolution') renderTagChips(); }));
+
+// ---------- Tags ----------
+const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+function resolutionHas(tag){ return new RegExp('(^|\\s)'+reEsc(tag)+'(?=\\s|$)','i').test($('resolution').value); }
+function toggleTag(tag){
+  const r = $('resolution');
+  if (resolutionHas(tag)){
+    r.value = r.value.replace(new RegExp('(^|\\s)'+reEsc(tag)+'(?=\\s|$)','ig'),'$1').replace(/[ \t]{2,}/g,' ').trim();
+  } else {
+    r.value = (r.value.trim() ? r.value.trimEnd()+' ' : '') + tag;
+  }
+  saveDraft(); renderTagChips();
+}
+function renderTagChips(){
+  const c = $('tagChips'); c.innerHTML='';
+  settings.tags.forEach(t => {
+    const b=document.createElement('button'); b.type='button';
+    const on = resolutionHas(t);
+    b.className='chip'+(on?' on':''); b.textContent=(on?'✓ ':'')+t;
+    b.onclick=()=>toggleTag(t); c.appendChild(b);
+  });
+}
+function renderTagEditor(){
+  const c=$('tagEditor'); c.innerHTML='';
+  settings.tags.forEach((t,i)=>{
+    const b=document.createElement('button'); b.type='button'; b.className='chip';
+    b.append(t); const x=document.createElement('span'); x.className='x'; x.textContent='✕'; b.append(x);
+    b.onclick=()=>{ if(confirm('Delete tag '+t+'?')){ settings.tags.splice(i,1); saveSettings(); renderTagEditor(); renderTagChips(); } };
+    c.appendChild(b);
+  });
+}
+$('addTagBtn').onclick = () => {
+  let t = $('newTag').value.trim().replace(/\s+/g,'');
+  if(!t) return;
+  if(!t.startsWith('#')) t='#'+t;
+  t = t.toUpperCase();
+  if(settings.tags.some(x=>x.toUpperCase()===t)) return toast(t+' already exists');
+  settings.tags.push(t); saveSettings(); $('newTag').value=''; renderTagEditor(); renderTagChips(); toast('Added '+t);
+};
+$('newTag').addEventListener('keydown', e=>{ if(e.key==='Enter') $('addTagBtn').click(); });
+
+// ---------- Scanner ----------
+// Load the barcode library on demand, trying a second CDN if the first fails.
+let libPromise = null;
+function loadScannerLib(){
+  if(typeof Html5Qrcode!=='undefined') return Promise.resolve();
+  return libPromise ||= (async () => {
+    for(const src of ['https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js',
+                      'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js']){
+      try{
+        await new Promise((res, rej) => { const sc=document.createElement('script'); sc.src=src; sc.onload=res; sc.onerror=rej; document.head.appendChild(sc); });
+        if(typeof Html5Qrcode!=='undefined') return;
+      }catch{}
+    }
+    libPromise = null;
+    throw new Error('Could not load the barcode scanner. Check your internet connection.');
+  })();
+}
+loadScannerLib().catch(()=>{});
+
+function scanMsg(text, linkText, onLink){
+  const m=$('scanMsg'); m.innerHTML=''; m.classList.toggle('hidden', !text);
+  if(!text) return;
+  m.style.color='var(--warn)'; m.append(text+' ');
+  if(linkText){ const a=document.createElement('a'); a.href='#'; a.textContent=linkText; a.onclick=e=>{e.preventDefault(); onLink();}; m.append(a); }
+}
+function gotCode(text){
+  $('asset').value = text.trim(); setEndNow();
+  if(navigator.vibrate) navigator.vibrate(80);
+  toast('Scanned: '+text.trim()); scanMsg('');
+}
+let scanner = null;
+async function stopScan(){
+  if(scanner){ try{ await scanner.stop(); scanner.clear(); }catch{} scanner=null; }
+  $('scanner').classList.remove('on'); $('scanBtn').textContent='📷 Scan';
+}
+// Fallback: take a still photo of the barcode and decode it (works without live camera access)
+function photoScan(){ $('scanPhoto').click(); }
+$('scanPhoto').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value='';
+  if(!f) return;
+  try{
+    await loadScannerLib();
+    toast('Reading barcode…');
+    const r = new Html5Qrcode('scanReader');
+    const text = await r.scanFile(f, false);
+    r.clear(); gotCode(text);
+  }catch(err){
+    scanMsg(typeof err==='string' || /No MultiFormat|not found|No barcode/i.test(err?.message||'')
+      ? 'No barcode found in that photo. Get closer, keep it sharp and well lit.' : (err?.message||String(err)),
+      'Try again', photoScan);
+  }
+});
+$('scanBtn').onclick = async () => {
+  if(scanner) return stopScan();
+  scanMsg('');
+  // Live camera needs an https address; opened as a file or inside another app it is blocked.
+  if(!window.isSecureContext || !navigator.mediaDevices?.getUserMedia){
+    scanMsg('Live camera is blocked here. Open the app from its https:// web address in Safari to use it. For now:', 'take a photo of the barcode', photoScan);
+    return photoScan();
+  }
+  try{ await loadScannerLib(); }catch(e){ return scanMsg(e.message, 'Retry', ()=>$('scanBtn').click()); }
+  $('scanner').classList.add('on'); $('scanBtn').textContent='✕ Stop';
+  scanner = new Html5Qrcode('scanner');
+  try{
+    await scanner.start({facingMode:'environment'},
+      {fps:10, qrbox:(w,h)=>({width:Math.floor(w*0.85), height:Math.floor(Math.min(h, w)*0.5)})},
+      text => { gotCode(text); stopScan(); }, () => {});
+  }catch(e){
+    await stopScan();
+    const msg = String(e?.message||e);
+    const denied = /NotAllowed|Permission|denied/i.test(msg);
+    scanMsg(denied
+      ? 'Camera permission was denied. Allow it in iPhone Settings › Safari › Camera (or tap “aA” › Website Settings › Camera), then try again. Or'
+      : 'Could not start the camera ('+msg+'). Or', 'take a photo of the barcode', photoScan);
+  }
+};
+
+// ---------- Photos (draft) ----------
+let draftPhotos = []; // {blob, url}
+async function compress(file, max=1600, q=0.8){
+  const url = URL.createObjectURL(file);
+  try{
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=url; });
+    const s = Math.min(1, max/Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth*s); c.height = Math.round(img.naturalHeight*s);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return await new Promise(res => c.toBlob(b => res(b || file), 'image/jpeg', q));
+  }catch{ return file; } finally { URL.revokeObjectURL(url); }
+}
+async function addPhotos(files){
+  for(const f of files){
+    const blob = await compress(f);
+    draftPhotos.push({blob, url: URL.createObjectURL(blob)});
+  }
+  renderThumbs();
+}
+function renderThumbs(){
+  const c=$('photoThumbs'); c.innerHTML='';
+  draftPhotos.forEach((p,i)=>{
+    const d=document.createElement('div'); d.className='thumb';
+    const img=document.createElement('img'); img.src=p.url; d.appendChild(img);
+    const x=document.createElement('button'); x.type='button'; x.textContent='✕';
+    x.onclick=()=>{ URL.revokeObjectURL(p.url); draftPhotos.splice(i,1); renderThumbs(); };
+    d.appendChild(x); c.appendChild(d);
+  });
+}
+$('takePhotoBtn').onclick = () => $('photoCam').click();
+$('pickPhotoBtn').onclick = () => $('photoPick').click();
+['photoCam','photoPick'].forEach(id => $(id).addEventListener('change', e => { addPhotos([...e.target.files]); e.target.value=''; }));
+
+// ---------- CSV ----------
+const HEADERS = ['Logged At','Asset ID','Fault','Resolution','Tags','Start Time','End Time','Duration (min)','Photos','Job ID'];
+const esc = v => { v = String(v??''); return /[",\n\r]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
+const row = j => [fmt(j.loggedAt), j.asset, j.fault, j.resolution, (j.tags||[]).join(' '), fmt(j.start), fmt(j.end), j.durationMin??'', (j.photos||[]).length, j.id].map(esc).join(',');
+const csvOf = jobs => HEADERS.join(',')+'\r\n'+jobs.map(row).join('\r\n')+'\r\n';
+const publicJob = j => { const {synced, done, ...rest} = j; return rest; };
+
+// ---------- OneDrive (Microsoft Graph, PKCE sign-in) ----------
+const redirectUri = location.origin + location.pathname;
+$('redirectUri').textContent = redirectUri;
+const b64url = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const SCOPES = 'Files.ReadWrite offline_access User.Read';
+const authBase = () => `https://login.microsoftonline.com/${settings.odTenant||'common'}/oauth2/v2.0`;
+const signedIn = () => !!store.get('token', null);
+const odRoot = () => (settings.odFolder||'').replace(/^\/+|\/+$/g,'');
+const odPath = rel => { const full = (odRoot() ? odRoot()+'/' : '') + rel; return '/me/drive/root:/'+full.split('/').map(encodeURIComponent).join('/')+':'; };
+
+async function signIn(){
+  if(!settings.odClient){ showTab('settings'); return toast('Enter your Azure app client ID first'); }
+  saveDraft(); store.set('returnTab', currentTab);
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
+  const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  const state = b64url(crypto.getRandomValues(new Uint8Array(16)));
+  store.set('pkce', {verifier, state});
+  const p = new URLSearchParams({client_id:settings.odClient, response_type:'code', redirect_uri:redirectUri,
+    scope:SCOPES, code_challenge:challenge, code_challenge_method:'S256', state, response_mode:'query', prompt:'select_account'});
+  location.href = authBase()+'/authorize?'+p;
+}
+async function tokenRequest(params){
+  const r = await fetch(authBase()+'/token', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams(Object.assign({client_id:settings.odClient, scope:SCOPES}, params))});
+  const j = await r.json();
+  if(!r.ok) throw new Error(j.error_description || j.error || 'Sign-in failed');
+  store.set('token', {access:j.access_token, refresh:j.refresh_token, exp:Date.now()+(j.expires_in-120)*1000});
+  return j.access_token;
+}
+async function handleRedirect(){
+  const q = new URLSearchParams(location.search);
+  if(!q.has('code') && !q.has('error')) return;
+  history.replaceState(null,'',redirectUri);
+  const back = store.get('returnTab', null); if(back) showTab(back);
+  if(q.has('error')) return toast('Sign-in: '+(q.get('error_description')||q.get('error')));
+  const pk = store.get('pkce', null);
+  if(!pk || pk.state!==q.get('state')) return toast('Sign-in state mismatch, try again');
+  try{
+    await tokenRequest({grant_type:'authorization_code', code:q.get('code'), redirect_uri:redirectUri, code_verifier:pk.verifier});
+    store.set('pkce', null); toast('Signed in to OneDrive'); updateOdStatus();
+    if(currentTab==='dash') loadDashboard();
+  }catch(e){ toast(e.message); }
+}
+async function getToken(){
+  const t = store.get('token', null);
+  if(!t) throw new Error('Not signed in to OneDrive');
+  if(Date.now() < t.exp) return t.access;
+  return tokenRequest({grant_type:'refresh_token', refresh_token:t.refresh});
+}
+async function graph(path, opts={}){
+  const tok = await getToken();
+  const url = path.startsWith('http') ? path : 'https://graph.microsoft.com/v1.0'+path;
+  return fetch(url, Object.assign({}, opts, {headers:Object.assign({Authorization:'Bearer '+tok}, opts.headers||{})}));
+}
+async function graphPut(rel, body, type){
+  const r = await graph(odPath(rel)+'/content', {method:'PUT', headers:{'Content-Type':type}, body});
+  if(!r.ok) throw new Error('Upload failed '+rel+' (HTTP '+r.status+')');
+  return r.json();
+}
+async function updateOdStatus(){
+  const el=$('odStatus');
+  if(!signedIn()){ el.textContent='Not signed in.'; el.style.color='var(--muted)'; return; }
+  try{
+    const r = await graph('/me'); if(!r.ok) throw new Error('HTTP '+r.status);
+    const me = await r.json();
+    el.textContent='✓ Signed in as '+(me.userPrincipalName||me.displayName); el.style.color='var(--ok)'; renderSaveLoc();
+  }catch(e){ el.textContent='Signed in, but could not reach OneDrive ('+e.message+')'; el.style.color='var(--warn)'; }
+}
+// ---------- Local folder (File System Access API, Chrome/Edge desktop) ----------
+const fsSupported = 'showDirectoryPicker' in window;
+let folderHandle = null;
+async function folderReady(request){
+  if(!fsSupported) return false;
+  folderHandle ||= await idb.get('cfg:folder');
+  if(!folderHandle) return false;
+  let p = await folderHandle.queryPermission({mode:'readwrite'});
+  if(p!=='granted' && request) p = await folderHandle.requestPermission({mode:'readwrite'});
+  return p==='granted';
+}
+async function browseFolder(){
+  if(!fsSupported) return toast('Folder picking needs Chrome or Edge on a computer');
+  try{
+    const h = await window.showDirectoryPicker({id:'repairlogger', mode:'readwrite'});
+    folderHandle = h; await idb.put('cfg:folder', h);
+    settings.folderName = h.name; saveSettings();
+    $('folderName').value = h.name; renderSaveLoc(); toast('Saving to folder: '+h.name);
+    syncPending(true);
+  }catch(e){ if(e.name!=='AbortError') toast('Could not open folder: '+e.message); }
+}
+async function fsDir(parts, create){
+  let d = folderHandle;
+  for(const part of parts) d = await d.getDirectoryHandle(part, {create});
+  return d;
+}
+const fsBackend = {
+  name: 'folder',
+  async put(rel, body){
+    const parts = rel.split('/'), file = parts.pop();
+    const fh = await (await fsDir(parts, true)).getFileHandle(file, {create:true});
+    const w = await fh.createWritable(); await w.write(body); await w.close();
+  },
+  async getFile(rel){
+    const parts = rel.split('/'), file = parts.pop();
+    try{ return await (await (await fsDir(parts, false)).getFileHandle(file)).getFile(); }
+    catch(e){ if(e.name==='NotFoundError') return null; throw e; }
+  },
+  async getText(rel){ const f = await this.getFile(rel); return f ? f.text() : null; }
+};
+const odBackend = {
+  name: 'onedrive',
+  put: (rel, body, type) => graphPut(rel, body, type),
+  async getText(rel){
+    const g = await graph(odPath(rel)+'/content');
+    if(g.ok) return g.text();
+    if(g.status===404) return null;
+    throw new Error('Read failed '+rel+' (HTTP '+g.status+')');
+  }
+};
+// ---------- Encryption (AES-256-GCM, key generated on device) ----------
+const KEY_PREFIX = 'RLK1-';
+const te = new TextEncoder(), td = new TextDecoder();
+function b64e(u8){ let s=''; for(let i=0;i<u8.length;i+=0x8000) s+=String.fromCharCode.apply(null, u8.subarray(i,i+0x8000)); return btoa(s); }
+function b64d(str){ const s=atob(str); const u=new Uint8Array(s.length); for(let i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u; }
+const b64urlE = u => b64e(u).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const b64urlD = s => b64d(s.replace(/-/g,'+').replace(/_/g,'/')+'==='.slice((s.length+3)%4));
+const hex = u => [...u].map(b=>b.toString(16).padStart(2,'0')).join('');
+let cryptoKeys = null; // {aes, hmac, fp}
+async function keysFromRaw(raw){
+  const base = await crypto.subtle.importKey('raw', raw, 'HKDF', false, ['deriveKey']);
+  const p = info => ({name:'HKDF', hash:'SHA-256', salt:te.encode('repair-logger'), info:te.encode(info)});
+  const aes = await crypto.subtle.deriveKey(p('aes'), base, {name:'AES-GCM', length:256}, false, ['encrypt','decrypt']);
+  const hmac = await crypto.subtle.deriveKey(p('names'), base, {name:'HMAC', hash:'SHA-256', length:256}, false, ['sign']);
+  const fpb = new Uint8Array(await crypto.subtle.digest('SHA-256', raw)).slice(0,4);
+  return {aes, hmac, fp: hex(fpb).toUpperCase().replace(/(.{4})/,'$1-')};
+}
+function parseKey(str){
+  str = (str||'').trim();
+  if(!str.startsWith(KEY_PREFIX)) throw new Error('That isn’t a Repair Logger key (it should start with '+KEY_PREFIX+')');
+  const raw = b64urlD(str.slice(KEY_PREFIX.length));
+  if(raw.length!==32) throw new Error('Key is the wrong length; check it was copied completely');
+  return raw;
+}
+async function loadKey(){ const k = store.get('encKey', null); cryptoKeys = k ? await keysFromRaw(parseKey(k)).catch(()=>null) : null; }
+async function setKey(str){ cryptoKeys = await keysFromRaw(parseKey(str)); store.set('encKey', str.trim()); store.set('keyVerified', null); renderKeyStatus(); renderSaveLoc(); }
+const MAGIC = te.encode('RLE1');
+async function encryptBytes(bytes){
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM', iv}, cryptoKeys.aes, bytes));
+  const out = new Uint8Array(4+12+ct.length); out.set(MAGIC,0); out.set(iv,4); out.set(ct,16); return out;
+}
+async function decryptBytes(u8){
+  if(!cryptoKeys) throw new Error('No encryption key on this device');
+  if(td.decode(u8.slice(0,4))!=='RLE1') throw new Error('Not an encrypted Repair Logger file');
+  return new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM', iv:u8.slice(4,16)}, cryptoKeys.aes, u8.slice(16)));
+}
+// File names on GitHub are a keyed hash, so they reveal nothing (no asset IDs or dates)
+async function opaqueName(rel){
+  const dir = rel.split('/')[0];
+  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', cryptoKeys.hmac, te.encode(rel)));
+  return dir+'/'+hex(sig.slice(0,16))+'.enc';
+}
+async function toBytes(body){
+  if(body instanceof Uint8Array) return body;
+  if(body instanceof Blob) return new Uint8Array(await body.arrayBuffer());
+  return te.encode(String(body));
+}
+
+// ---------- GitHub API ----------
+const ghToken = () => store.get('ghToken', '');
+const encPath = p => p.split('/').map(encodeURIComponent).join('/');
+async function ghApi(path, opts={}){
+  const headers = {Authorization:'Bearer '+ghToken(), Accept: opts.accept||'application/vnd.github+json', 'X-GitHub-Api-Version':'2022-11-28'};
+  if(opts.body) headers['Content-Type']='application/json';
+  return fetch('https://api.github.com'+path, {method:opts.method||'GET', headers, body:opts.body, cache:'no-store'});
+}
+async function ghFail(r, what){
+  let m=''; try{ m=(await r.json()).message; }catch{}
+  const tip = r.status===401 ? ' (token invalid or expired)' : (r.status===403||r.status===404) ? ' (check the username, repository name and that the token has access with Contents: Read and write)' : '';
+  return new Error(`${what}: ${m||'HTTP '+r.status}${tip}`);
+}
+async function ghGetMeta(repo, branch, path){
+  const r = await ghApi(`/repos/${encodeURIComponent(settings.ghOwner)}/${encodeURIComponent(repo)}/contents/${encPath(path)}?ref=${encodeURIComponent(branch)}`);
+  if(r.status===404) return null;
+  if(!r.ok) throw await ghFail(r, 'Read '+path);
+  return r.json();
+}
+async function ghBlob(repo, sha){
+  const r = await ghApi(`/repos/${encodeURIComponent(settings.ghOwner)}/${encodeURIComponent(repo)}/git/blobs/${sha}`, {accept:'application/vnd.github.raw+json'});
+  if(!r.ok) throw await ghFail(r, 'Download');
+  return new Uint8Array(await r.arrayBuffer());
+}
+async function ghGetBytes(repo, branch, path){
+  const m = await ghGetMeta(repo, branch, path);
+  if(!m) return null;
+  if(m.content) return b64d(m.content.replace(/\s/g,''));
+  return ghBlob(repo, m.sha);
+}
+async function ghPut(repo, branch, path, bytes, message, sha){
+  for(let attempt=0; attempt<2; attempt++){
+    if(sha===undefined || attempt>0){ const m = await ghGetMeta(repo, branch, path); sha = m?.sha || null; }
+    const body = {message, content:b64e(bytes), branch}; if(sha) body.sha = sha;
+    const r = await ghApi(`/repos/${encodeURIComponent(settings.ghOwner)}/${encodeURIComponent(repo)}/contents/${encPath(path)}`, {method:'PUT', body:JSON.stringify(body)});
+    if(r.ok) return r.json();
+    if((r.status===409||r.status===422) && attempt===0) continue;
+    throw await ghFail(r, 'Upload');
+  }
+}
+const ghPrefix = () => { const f=(settings.ghFolder||'').replace(/^\/+|\/+$/g,''); return f ? f+'/' : ''; };
+const ghBranch = () => settings.ghBranch || 'main';
+// A small check file lets every device confirm it is using the same key (the key itself is never uploaded)
+async function ensureRepoKey(){
+  const tag = settings.ghOwner+'/'+settings.ghRepo+'/'+ghPrefix()+'#'+cryptoKeys.fp;
+  if(store.get('keyVerified', null)===tag) return;
+  const path = ghPrefix()+'repairlogger-key.json';
+  const raw = await ghGetBytes(settings.ghRepo, ghBranch(), path);
+  if(raw){
+    const info = JSON.parse(td.decode(raw));
+    let ok = false;
+    try{ ok = td.decode(await decryptBytes(b64d(info.check)))==='repair-logger-ok'; }catch{}
+    if(!ok) throw new Error(`This repository uses a different encryption key (${info.fingerprint||'unknown'}). This device has ${cryptoKeys.fp}. Paste the original key in Settings.`);
+  } else {
+    const info = {app:'Repair Logger', v:1, fingerprint:cryptoKeys.fp, check:b64e(await encryptBytes(te.encode('repair-logger-ok'))),
+      note:'Encryption check only. The key is not stored here.'};
+    await ghPut(settings.ghRepo, ghBranch(), path, te.encode(JSON.stringify(info, null, 1)), 'Repair Logger: set up encryption', null);
+  }
+  store.set('keyVerified', tag);
+}
+const ghBackend = {
+  async put(rel, body){
+    await ensureRepoKey();
+    const enc = await encryptBytes(await toBytes(body));
+    await ghPut(settings.ghRepo, ghBranch(), ghPrefix()+await opaqueName(rel), enc, 'Repair Logger update');
+  },
+  async getText(rel){
+    const b = await ghGetBytes(settings.ghRepo, ghBranch(), ghPrefix()+await opaqueName(rel));
+    return b ? td.decode(await decryptBytes(b)) : null;
+  }
+};
+const ghConfigured = () => !!(ghToken() && settings.ghOwner && settings.ghRepo);
+
+const remoteMode = () => ['onedrive','folder','github'].includes(settings.mode);
+const backend = () => settings.mode==='folder' ? fsBackend : settings.mode==='github' ? ghBackend : odBackend;
+const backendLabel = () => settings.mode==='folder' ? 'folder “'+(settings.folderName||'?')+'”' : settings.mode==='github' ? 'GitHub' : 'OneDrive';
+const notReadyMsg = () => settings.mode==='folder' ? 'Choose a folder in Settings'
+  : settings.mode==='github' ? (!ghConfigured() ? 'Set up your GitHub account and repository in Settings' : 'Generate or add an encryption key in Settings')
+  : 'Sign in to OneDrive in Settings';
+async function backendReady(request){
+  if(settings.mode==='folder') return folderReady(request);
+  if(settings.mode==='github') return ghConfigured() && !!cryptoKeys;
+  return signedIn();
+}
+
+async function appendCsv(job){
+  const file = fillName(settings.odFile||DEFAULT_SETTINGS.odFile, job);
+  const existing = await backend().getText(file);
+  const body = existing ? existing.replace(/\s*$/,'')+'\r\n'+row(job)+'\r\n' : '\ufeff'+csvOf([job]);
+  await backend().put(file, body, 'text/csv');
+}
+// Upload one job: photos, JSON record, CSV row. Each step is tracked so retries don't duplicate.
+async function syncJob(job){
+  job.done ||= {};
+  job.done.photos ||= [];
+  for(const name of job.photos){
+    if(job.done.photos.includes(name)) continue;
+    const blob = await idb.get('p:'+name);
+    if(blob) await backend().put('photos/'+name, blob, 'image/jpeg');
+    job.done.photos.push(name); saveLogs();
+  }
+  await backend().put('jobs/'+job.id+'.json', JSON.stringify(publicJob(job), null, 1), 'application/json');
+  if(!job.done.csv && settings.mode!=='github'){ await appendCsv(job); job.done.csv = true; }
+  job.synced = true; saveLogs();
+}
+let syncing = false;
+async function syncPending(quiet){
+  if(!remoteMode() || syncing) return;
+  const pend = logs.filter(l=>!l.synced);
+  if(!pend.length) return;
+  if(!await backendReady(!quiet)){ if(!quiet) toast(notReadyMsg()); return; }
+  syncing = true;
+  let ok = 0;
+  try{ for(const j of pend){ await syncJob(j); ok++; } }
+  catch(e){ toast(backendLabel()+': '+e.message); }
+  finally{ syncing = false; }
+  if(ok){ toast(`Saved ${ok} job(s) to ${backendLabel()}`); if(currentTab==='history') renderLogs(); }
+}
+
+// ---------- Share sheet ----------
+async function jobFiles(job){
+  const files = [new File(['\ufeff'+csvOf([job])], fillName(settings.shareFile||DEFAULT_SETTINGS.shareFile, job), {type:'text/csv'})];
+  for(const name of job.photos||[]){
+    const b = await idb.get('p:'+name);
+    if(b) files.push(new File([b], name, {type:'image/jpeg'}));
+  }
+  return files;
+}
+async function shareJob(job){
+  const files = await jobFiles(job);
+  if(navigator.canShare && navigator.canShare({files})) await navigator.share({files});
+  else files.forEach(download);
+}
+function download(file){
+  const a=document.createElement('a'); a.href=URL.createObjectURL(file); a.download=file.name;
+  document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},1000);
+}
+
+// ---------- Save job ----------
+function newId(asset){
+  const d=new Date();
+  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}-`+
+    (asset.replace(/[^\w-]/g,'').slice(0,24) || 'job')+'-'+Math.random().toString(36).slice(2,6);
+}
+$('saveBtn').onclick = async () => {
+  const asset = $('asset').value.trim();
+  if(!asset){ toast('Asset ID is required'); $('asset').focus(); return; }
+  if(settings.mode==='folder') await folderReady(true).catch(()=>false);
+  const resolution = $('resolution').value.trim();
+  const id = newId(asset);
+  const photos = [];
+  for(let i=0;i<draftPhotos.length;i++){
+    const name = `${id}_${i+1}.jpg`;
+    await idb.put('p:'+name, draftPhotos[i].blob); photos.push(name);
+  }
+  const job = {
+    id, loggedAt: localInput(new Date()).replace('T',' '),
+    asset, fault: $('fault').value.trim(), resolution,
+    tags: [...new Set((resolution.match(/#[\w-]+/g)||[]).map(t=>t.toUpperCase()))],
+    start: $('start').value.replace('T',' '),
+    end: $('end').value.replace('T',' '),
+    durationMin: ($('start').value && $('end').value) ? Math.round((new Date($('end').value)-new Date($('start').value))/60000) : '',
+    photos, status: 'open', completedAt: null,
+    synced: false
+  };
+  logs.unshift(job); saveLogs();
+  const st=$('saveStatus'); st.style.color='var(--muted)';
+  $('saveBtn').disabled = true;
+  try{
+    if(remoteMode()){
+      st.textContent='Saving to '+backendLabel()+'…';
+      try{
+        if(!await backendReady(false)) throw new Error(notReadyMsg());
+        await syncJob(job); st.textContent='✓ Saved to '+backendLabel(); st.style.color='var(--ok)';
+      }
+      catch(e){ st.textContent='Saved on device; '+backendLabel()+' failed ('+e.message+'). It will retry.'; st.style.color='var(--warn)'; }
+    } else if(settings.mode==='share'){
+      try{ await shareJob(job); job.synced=true; saveLogs(); st.textContent='✓ Saved'; st.style.color='var(--ok)'; }
+      catch(e){ st.textContent = e.name==='AbortError' ? 'Share cancelled. Job kept in History.' : 'Share failed: '+e.message; st.style.color='var(--warn)'; }
+    } else {
+      job.synced=true; saveLogs(); st.textContent='✓ Saved on this device'; st.style.color='var(--ok)';
+    }
+  } finally { $('saveBtn').disabled=false; }
+  ['asset','fault','resolution'].forEach(f=>$(f).value='');
+  draftPhotos.forEach(p=>URL.revokeObjectURL(p.url)); draftPhotos=[]; renderThumbs();
+  setEndNow(); renderTagChips();
+};
+
+// ---------- History (this device) ----------
+function renderPending(){
+  const n = logs.filter(l=>!l.synced).length, b=$('pendingBadge');
+  b.textContent = n+' pending'; b.classList.toggle('hidden', !n);
+}
+function renderLogs(){
+  const list=$('logList'); list.innerHTML='';
+  if(!logs.length){ list.innerHTML='<div class="hint">No jobs logged on this device yet.</div>'; return; }
+  logs.forEach(j=>{
+    const d=document.createElement('div'); d.className='log';
+    const badge = j.status==='completed' ? ['done','completed'] : j.synced ? ['synced','saved'] : ['pending','pending'];
+    d.innerHTML = `<div class="top"><span class="asset"></span><span class="badge ${badge[0]}">${badge[1]}</span></div>
+      <div class="meta"></div><div class="txt f"></div><div class="txt r"></div>
+      <div class="row" style="margin-top:6px"><button class="btn small" data-a="share">Share</button><button class="btn small danger" data-a="del">Delete</button></div>`;
+    d.querySelector('.asset').textContent=j.asset;
+    d.querySelector('.meta').textContent=fmt(j.start)+' → '+fmt(j.end)+(j.durationMin!==''&&j.durationMin!=null?' ('+j.durationMin+' min)':'')+(j.photos.length?' · 📷 '+j.photos.length:'');
+    d.querySelector('.f').textContent=j.fault ? 'Fault: '+j.fault : '';
+    d.querySelector('.r').textContent=j.resolution ? 'Resolution: '+j.resolution : '';
+    d.querySelector('[data-a=share]').onclick=()=>shareJob(j).catch(()=>{});
+    d.querySelector('[data-a=del]').onclick=()=>{ if(confirm('Delete this job from the device? (Does not remove it from OneDrive)')){
+      logs=logs.filter(x=>x!==j); j.photos.forEach(n=>idb.del('p:'+n)); saveLogs(); renderLogs(); } };
+    list.appendChild(d);
+  });
+}
+$('syncBtn').onclick = () => remoteMode() ? syncPending() : toast('Retry only applies to OneDrive or folder saving');
+$('exportBtn').onclick = async () => {
+  if(!logs.length) return toast('Nothing to export');
+  const file = new File(['\ufeff'+csvOf([...logs].reverse())], fillName('RepairLog_export_{yyyy}-{MM}-{dd}.csv'), {type:'text/csv'});
+  try{ if(navigator.canShare && navigator.canShare({files:[file]})) await navigator.share({files:[file]}); else download(file); }catch{}
+};
+
+// ---------- Dashboard ----------
+let dashJobs = [], dashView = 'open', dashSourceOD = false, dashSourceFS = false, dashSourceGH = false, photoInfo = {}, ghTree = {}, photoUrlCache = {}; // name -> {thumb, web}
+async function listChildren(rel, extra=''){
+  const out = [];
+  let url = odPath(rel)+'/children?$top=999'+extra;
+  while(url){
+    const r = await graph(url);
+    if(r.status===404) return out;
+    if(!r.ok) throw new Error('List failed (HTTP '+r.status+')');
+    const j = await r.json(); out.push(...j.value); url = j['@odata.nextLink'] || null;
+  }
+  return out;
+}
+async function loadDashboard(){
+  const src=$('dashSource');
+  dashSourceOD = settings.mode==='onedrive' && signedIn();
+  dashSourceFS = settings.mode==='folder' && await folderReady(true).catch(()=>false);
+  dashSourceGH = settings.mode==='github' && ghConfigured() && !!cryptoKeys;
+  if(dashSourceGH){
+    src.textContent = 'Loading from GitHub…';
+    try{
+      await syncPending(true);
+      await ensureRepoKey();
+      const r = await ghApi(`/repos/${encodeURIComponent(settings.ghOwner)}/${encodeURIComponent(settings.ghRepo)}/git/trees/${encodeURIComponent(ghBranch())}?recursive=1`);
+      let tree = [];
+      if(r.ok) tree = (await r.json()).tree || [];
+      else if(r.status!==404 && r.status!==409) throw await ghFail(r, 'List');
+      ghTree = {}; tree.forEach(t=>{ if(t.type==='blob') ghTree[t.path]=t.sha; });
+      const jobPaths = Object.keys(ghTree).filter(p=>p.startsWith(ghPrefix()+'jobs/') && p.endsWith('.enc'));
+      const cache = store.get('ghJobCache', {}), next = {};
+      let bad = 0;
+      const queue = jobPaths.slice();
+      await Promise.all(Array.from({length:6}, async () => {
+        while(queue.length){
+          const path = queue.shift(), sha = ghTree[path];
+          if(cache[path] && cache[path].sha===sha){ next[path]=cache[path]; continue; }
+          try{ next[path] = {sha, job: JSON.parse(td.decode(await decryptBytes(await ghBlob(settings.ghRepo, sha))))}; }
+          catch{ bad++; }
+        }
+      }));
+      store.set('ghJobCache', next);
+      dashJobs = Object.values(next).map(x=>x.job).filter(Boolean);
+      dashJobs.forEach(j=>{ j.status ||= 'open'; j.photos ||= []; });
+      dashJobs.sort((a,b)=>String(b.id).localeCompare(String(a.id)));
+      src.textContent = `🔒 GitHub: ${settings.ghOwner}/${settings.ghRepo} · ${dashJobs.length} job(s)`+(bad?` · ${bad} file(s) couldn’t be decrypted`:'')+` · updated ${new Date().toLocaleTimeString()}`;
+    }catch(e){ src.textContent = 'Could not load from GitHub: '+e.message; }
+    renderDash(); return;
+  }
+  if(dashSourceFS){
+    src.textContent = 'Loading from folder…';
+    try{
+      await syncPending(true);
+      dashJobs = [];
+      let dir = null;
+      try{ dir = await fsDir(['jobs'], false); }catch(e){ if(e.name!=='NotFoundError') throw e; }
+      if(dir) for await (const [name, h] of dir.entries()){
+        if(h.kind!=='file' || !name.endsWith('.json')) continue;
+        try{ dashJobs.push(JSON.parse(await (await h.getFile()).text())); }catch{}
+      }
+      dashJobs.forEach(j=>{ j.status ||= 'open'; j.photos ||= []; });
+      dashJobs.sort((a,b)=>String(b.id).localeCompare(String(a.id)));
+      src.textContent = `Folder: ${settings.folderName||folderHandle.name}/jobs · ${dashJobs.length} job(s) · updated ${new Date().toLocaleTimeString()}`;
+    }catch(e){ src.textContent = 'Could not read folder: '+e.message; }
+    renderDash(); return;
+  }
+  if(!dashSourceOD){
+    dashJobs = logs.map(l=>l);
+    src.innerHTML = settings.mode==='onedrive'
+      ? 'Showing jobs on this device only. <a href="#" id="dashSignIn">Sign in to OneDrive</a> to see all jobs.'
+      : settings.mode==='folder'
+      ? 'Showing jobs on this device only. <a href="#" id="dashSignIn">Allow access to the folder</a> (or choose one in Settings) to see all jobs.'
+      : settings.mode==='github'
+      ? 'Showing jobs on this device only. <a href="#" id="dashSignIn">Finish GitHub setup</a> (account, repository and encryption key) to see all jobs.'
+      : 'Showing jobs saved on this device. Switch Save location to OneDrive to see jobs from your phone on your PC.';
+    const a=$('dashSignIn'); if(a) a.onclick=e=>{e.preventDefault(); settings.mode==='github' ? showTab('settings') : settings.mode==='folder' ? (folderHandle ? loadDashboard() : showTab('settings')) : signIn();};
+    renderDash(); return;
+  }
+  src.textContent = 'Loading from OneDrive…';
+  try{
+    await syncPending(true);
+    const cache = store.get('jobCache', {});
+    const items = (await listChildren('jobs')).filter(i=>i.name.endsWith('.json'));
+    const next = {};
+    const queue = items.slice();
+    await Promise.all(Array.from({length:8}, async () => {
+      while(queue.length){
+        const it = queue.shift();
+        if(cache[it.name] && cache[it.name].eTag===it.eTag){ next[it.name]=cache[it.name]; continue; }
+        try{
+          const r = await fetch(it['@microsoft.graph.downloadUrl']);
+          next[it.name] = {eTag:it.eTag, job: await r.json()};
+        }catch{}
+      }
+    }));
+    store.set('jobCache', next);
+    dashJobs = Object.values(next).map(x=>x.job).filter(Boolean);
+    dashJobs.forEach(j=>{ j.status ||= 'open'; j.photos ||= []; });
+    dashJobs.sort((a,b)=>String(b.id).localeCompare(String(a.id)));
+    photoInfo = {};
+    if(dashJobs.some(j=>j.photos.length)){
+      (await listChildren('photos', '&$expand=thumbnails')).forEach(p=>{
+        photoInfo[p.name] = {thumb: p.thumbnails?.[0]?.medium?.url || p.thumbnails?.[0]?.small?.url, web: p.webUrl};
+      });
+    }
+    src.textContent = `OneDrive: ${odRoot()||'(root)'}/jobs · ${dashJobs.length} job(s) · updated ${new Date().toLocaleTimeString()}`;
+  }catch(e){
+    src.textContent = 'Could not load from OneDrive: '+e.message;
+  }
+  renderDash();
+}
+function copyBtn(text){
+  const b=document.createElement('button'); b.type='button'; b.className='copy'; b.title='Copy'; b.textContent='⧉';
+  b.onclick = async () => {
+    try{ await navigator.clipboard.writeText(text); }
+    catch{ const t=document.createElement('textarea'); t.value=text; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
+    b.textContent='✓'; b.classList.add('ok'); setTimeout(()=>{ b.textContent='⧉'; b.classList.remove('ok'); }, 1200);
+  };
+  return b;
+}
+function cell(text, wide){
+  const td=document.createElement('td'); if(wide) td.className='wide';
+  const d=document.createElement('div'); d.className='cell';
+  const v=document.createElement('div'); v.className='val'; v.textContent=text??'';
+  d.appendChild(v); if(text!=null && text!=='') d.appendChild(copyBtn(String(text)));
+  td.appendChild(d); return td;
+}
+async function photoCell(j){
+  const td=document.createElement('td'); const w=document.createElement('div'); w.className='pthumbs';
+  for(const name of j.photos){
+    const a=document.createElement('a'); a.target='_blank'; a.rel='noopener';
+    const img=document.createElement('img'); img.alt=name; img.loading='lazy';
+    if(dashSourceOD && photoInfo[name]){ img.src=photoInfo[name].thumb||''; a.href=photoInfo[name].web; }
+    else if(dashSourceGH){
+      // decrypt in the background so the table appears straight away
+      a.appendChild(img); w.appendChild(a);
+      (async () => {
+        if(!photoUrlCache[name]){
+          let blob = await idb.get('p:'+name);
+          if(!blob){
+            const sha = ghTree[ghPrefix()+await opaqueName('photos/'+name)];
+            if(!sha) return a.remove();
+            blob = new Blob([await decryptBytes(await ghBlob(settings.ghRepo, sha))], {type:'image/jpeg'});
+          }
+          photoUrlCache[name] = URL.createObjectURL(blob);
+        }
+        img.src = a.href = photoUrlCache[name];
+      })().catch(()=>a.remove());
+      continue;
+    }
+    else {
+      let b = dashSourceFS ? await fsBackend.getFile('photos/'+name).catch(()=>null) : null;
+      b ||= await idb.get('p:'+name);
+      if(!b) continue; const u=URL.createObjectURL(b); img.src=u; a.href=u;
+    }
+    a.appendChild(img); w.appendChild(a);
+  }
+  td.appendChild(w); return td;
+}
+async function setStatus(j, status){
+  const prev = {status:j.status, completedAt:j.completedAt};
+  j.status = status; j.completedAt = status==='completed' ? localInput(new Date()).replace('T',' ') : null;
+  const local = logs.find(l=>l.id===j.id);
+  if(local && local!==j){ local.status=j.status; local.completedAt=j.completedAt; }
+  saveLogs();
+  if(dashSourceOD || dashSourceFS || dashSourceGH){
+    try{ await (dashSourceGH ? ghBackend : dashSourceFS ? fsBackend : odBackend).put('jobs/'+j.id+'.json', JSON.stringify(publicJob(j), null, 1), 'application/json'); }
+    catch(e){ Object.assign(j, prev); if(local) Object.assign(local, prev); saveLogs(); toast('Could not update: '+e.message); }
+  }
+  renderDash();
+  toast(status==='completed' ? `${j.asset} moved to Completed` : `${j.asset} reopened`);
+}
+async function renderDash(){
+  const q = $('dashSearch').value.trim().toLowerCase();
+  const open = dashJobs.filter(j=>j.status!=='completed'), done = dashJobs.filter(j=>j.status==='completed');
+  $('cntOpen').textContent = '('+open.length+')'; $('cntDone').textContent = '('+done.length+')';
+  $('thDone').classList.toggle('hidden', dashView!=='completed');
+  let rows = dashView==='completed' ? done : open;
+  if(q) rows = rows.filter(j=>[j.asset,j.fault,j.resolution,(j.tags||[]).join(' ')].join(' ').toLowerCase().includes(q));
+  const body=$('dashBody'); body.innerHTML='';
+  if(!rows.length){ body.innerHTML=`<tr><td colspan="10" class="empty">${q?'No matches.':dashView==='completed'?'No completed jobs yet.':'No open jobs.'}</td></tr>`; return; }
+  for(const j of rows){
+    const tr=document.createElement('tr');
+    tr.append(cell(j.asset), cell(j.fault,true), cell(j.resolution,true), cell((j.tags||[]).join(' ')),
+      cell(fmt(j.start)), cell(fmt(j.end)), cell(j.durationMin));
+    tr.append(await photoCell(j));
+    const tdDone = cell(fmt(j.completedAt)); if(dashView!=='completed') tdDone.classList.add('hidden'); tr.append(tdDone);
+    const act=document.createElement('td'); act.style.whiteSpace='nowrap';
+    const b=document.createElement('button'); b.type='button'; b.className='btn small'+(dashView==='completed'?'':' primary');
+    b.textContent = dashView==='completed' ? '↩ Reopen' : '✓ Complete';
+    b.onclick = () => { b.disabled=true; setStatus(j, dashView==='completed' ? 'open' : 'completed'); };
+    const cr=document.createElement('button'); cr.type='button'; cr.className='btn small'; cr.textContent='Copy row'; cr.style.marginLeft='6px';
+    cr.onclick = () => { copyBtn([j.asset,j.fault,j.resolution,(j.tags||[]).join(' '),fmt(j.start),fmt(j.end),j.durationMin].join('\t')).click(); toast('Row copied'); };
+    act.append(b, cr); tr.append(act);
+    body.appendChild(tr);
+  }
+}
+$('segOpen').onclick = () => { dashView='open'; $('segOpen').classList.add('active'); $('segDone').classList.remove('active'); renderDash(); };
+$('segDone').onclick = () => { dashView='completed'; $('segDone').classList.add('active'); $('segOpen').classList.remove('active'); renderDash(); };
+$('dashSearch').addEventListener('input', renderDash);
+$('dashRefresh').onclick = loadDashboard;
+$('dashExport').onclick = async () => {
+  if(!dashJobs.length) return toast('Nothing to export');
+  const sorted = [...dashJobs].sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+  const hdr = HEADERS.join(',')+',Status,Completed At\r\n';
+  const body = sorted.map(j => row(j)+','+esc(j.status||'open')+','+esc(fmt(j.completedAt))).join('\r\n');
+  const file = new File(['﻿'+hdr+body+'\r\n'], fillName('RepairLog_{yyyy}-{MM}-{dd}.csv'), {type:'text/csv'});
+  try{ if(navigator.canShare && navigator.canShare({files:[file]}) && matchMedia('(max-width: 899px)').matches) await navigator.share({files:[file]}); else download(file); }catch{}
+};
+
+// ---------- Settings bindings ----------
+function bindSettings(){
+  document.querySelectorAll('input[name=mode]').forEach(r=>{
+    r.checked = r.value===settings.mode;
+    r.onchange = () => { settings.mode=r.value; saveSettings(); showModeSettings(); };
+  });
+  ['odFolder','odFile','odClient','odTenant','shareFile','ghOwner','ghRepo','ghBranch','ghFolder','appRepo','appBranch','appPath'].forEach(k=>{
+    $(k).value = settings[k]||'';
+    $(k).addEventListener('change', ()=>{ settings[k]=$(k).value.trim(); saveSettings(); renderSaveLoc(); });
+  });
+  $('signInBtn').onclick = signIn;
+  $('browseBtn').onclick = browseFolder;
+  $('folderName').value = settings.folderName || '';
+  if(!fsSupported){ $('modeFolder').disabled = true; $('browseBtn').disabled = true;
+    $('folderModeHint').textContent = 'Not available in this browser (iPhone Safari can’t pick folders). On iPhone use Share sheet → Save to Files. On a PC use Chrome or Edge.'; }
+  $('signOutBtn').onclick = () => { store.set('token',null); updateOdStatus(); toast('Signed out'); };
+  bindGitHubSettings();
+  $('setupLinkBtn').onclick = async () => {
+    const {mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath} = settings;
+    const enc = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath})))));
+    const link = redirectUri+'#cfg='+enc;
+    try{ await navigator.clipboard.writeText(link); toast('Setup link copied'); }catch{ prompt('Copy this link:', link); }
+  };
+  showModeSettings();
+}
+let folderUrl = null;
+function locText(){
+  if(settings.mode==='onedrive') return 'OneDrive › '+(odRoot()||'(root)').split('/').join(' › ');
+  if(settings.mode==='github') return 'GitHub › '+(settings.ghOwner||'?')+'/'+(settings.ghRepo||'?')+(ghPrefix()?'/'+ghPrefix().slice(0,-1):'')+' (encrypted)';
+  if(settings.mode==='folder') return settings.folderName ? 'Folder on this computer › '+settings.folderName : 'Folder on this computer (none chosen yet)';
+  if(settings.mode==='share') return 'You choose each time (share sheet)';
+  return 'This device only';
+}
+function renderSaveLoc(){
+  const dl=$('saveLocInfo'); dl.innerHTML='';
+  const add=(k,v)=>{ const dt=document.createElement('dt'); dt.textContent=k; const dd=document.createElement('dd'); dd.textContent=v; dl.append(dt,dd); };
+  add('Saving to', locText());
+  if(settings.mode==='onedrive'){
+    const base = odRoot() ? odRoot()+'/' : '';
+    add('CSV log', base+fillName(settings.odFile||DEFAULT_SETTINGS.odFile));
+    add('Job records', base+'jobs/');
+    add('Photos', base+'photos/');
+    add('Account', signedIn() ? ($('odStatus').textContent.replace('✓ Signed in as ','')||'Signed in') : 'Not signed in');
+  } else if(settings.mode==='folder'){
+    const base = settings.folderName ? settings.folderName+'/' : '';
+    add('CSV log', base+fillName(settings.odFile||DEFAULT_SETTINGS.odFile));
+    add('Job records', base+'jobs/');
+    add('Photos', base+'photos/');
+  } else if(settings.mode==='github'){
+    add('Repository', (settings.ghOwner||'?')+'/'+(settings.ghRepo||'?')+' · branch '+ghBranch());
+    add('Folder', ghPrefix() || '(top level)');
+    add('Encryption', cryptoKeys ? '🔒 On · key '+cryptoKeys.fp : '⚠ No key on this device');
+    add('Token', ghToken() ? 'Saved on this device' : 'Not set');
+  } else if(settings.mode==='share'){
+    add('File name', fillName(settings.shareFile||DEFAULT_SETTINGS.shareFile, {asset:'ASSET'}));
+  }
+  add('Kept on device', logs.length+' job(s), '+logs.filter(l=>!l.synced).length+' pending');
+  const a=$('openFolderLink'); a.classList.add('hidden');
+  if(settings.mode==='github' && settings.ghOwner && settings.ghRepo){
+    a.href = `https://github.com/${settings.ghOwner}/${settings.ghRepo}/tree/${ghBranch()}/${ghPrefix()}`;
+    a.textContent = 'Open repository on GitHub'; a.classList.remove('hidden');
+  } else a.textContent = 'Open folder in OneDrive';
+  if(settings.mode==='onedrive' && signedIn()){
+    graph(odRoot() ? '/me/drive/root:/'+odRoot().split('/').map(encodeURIComponent).join('/') : '/me/drive/root').then(r=>r.ok?r.json():null).then(j=>{
+      if(j?.webUrl){ a.href=j.webUrl; a.classList.remove('hidden'); }
+    }).catch(()=>{});
+  }
+  $('saveLocHint').innerHTML='';
+  const hint=$('saveLocHint'); hint.append('Saving to: '+locText()+' · ');
+  const ch=document.createElement('a'); ch.href='#'; ch.textContent='Change'; ch.onclick=e=>{e.preventDefault(); showTab('settings');};
+  hint.append(ch);
+}
+function renderKeyStatus(){
+  const el = $('keyStatus');
+  if(cryptoKeys){ el.textContent = '✓ Key on this device · fingerprint '+cryptoKeys.fp; el.style.color='var(--ok)'; }
+  else { el.textContent = 'No key on this device yet. Generate one on your first device, then add the same key on the others.'; el.style.color='var(--warn)'; }
+  $('copyKeyBtn').disabled = $('dlKeyBtn').disabled = $('forgetKeyBtn').disabled = !cryptoKeys;
+}
+function bindGitHubSettings(){
+  $('appVersion').textContent = APP_VERSION;
+  $('ghTokenInput').value = ghToken();
+  $('ghTokenInput').addEventListener('change', () => { store.set('ghToken', $('ghTokenInput').value.trim()); store.set('keyVerified', null); renderSaveLoc(); });
+  $('ghForgetBtn').onclick = () => { store.set('ghToken',''); $('ghTokenInput').value=''; $('ghStatus').textContent='Token removed from this device.'; renderSaveLoc(); };
+  $('ghTestBtn').onclick = async () => {
+    const st = $('ghStatus'); st.style.color='var(--muted)'; st.textContent='Checking…';
+    store.set('ghToken', $('ghTokenInput').value.trim());
+    if(!ghToken() || !settings.ghOwner) { st.textContent='Enter your username and token first.'; st.style.color='var(--warn)'; return; }
+    const lines = [];
+    let warn = false;
+    for(const [label, repo] of [['Data', settings.ghRepo], ['App', settings.appRepo]]){
+      if(!repo) continue;
+      const r = await ghApi(`/repos/${encodeURIComponent(settings.ghOwner)}/${encodeURIComponent(repo)}`);
+      if(!r.ok){ lines.push(`✕ ${label} repo “${repo}”: ${(await ghFail(r,'')).message.replace(/^: /,'')}`); warn = true; continue; }
+      const j = await r.json();
+      const canWrite = j.permissions ? j.permissions.push : true;
+      let line = `✓ ${label} repo ${j.full_name} (${j.private?'private':'public'})`+(canWrite?'':' — read-only, token needs Contents: Read and write');
+      if(label==='Data' && !j.private){ line += ' ⚠ make this repository private'; warn = true; }
+      if(!canWrite) warn = true;
+      lines.push(line);
+    }
+    st.textContent = lines.join('\n'); st.style.whiteSpace='pre-line'; st.style.color = warn ? 'var(--warn)' : 'var(--ok)';
+  };
+  // Key management
+  $('genKeyBtn').onclick = async () => {
+    if(cryptoKeys && !confirm('Replace the key on this device? Data already saved with the old key can only be read with the old key.')) return;
+    const str = KEY_PREFIX + b64urlE(crypto.getRandomValues(new Uint8Array(32)));
+    await setKey(str);
+    if(ghConfigured()){
+      try{
+        const info = await ghGetBytes(settings.ghRepo, ghBranch(), ghPrefix()+'repairlogger-key.json');
+        if(info) alert('Note: this repository already has data encrypted with another key ('+(JSON.parse(td.decode(info)).fingerprint||'?')+'). If that is your data, paste that key under “Use an existing key” instead.');
+      }catch{}
+    }
+    downloadKey();
+    toast('New key created. Save the key file somewhere safe.');
+  };
+  $('copyKeyBtn').onclick = async () => {
+    const k = store.get('encKey',''); if(!k) return;
+    try{ await navigator.clipboard.writeText(k); toast('Key copied. Paste it on your other device, then clear your clipboard.'); }
+    catch{ prompt('Copy your key:', k); }
+  };
+  $('dlKeyBtn').onclick = downloadKey;
+  $('importKeyBtn').onclick = async () => {
+    try{ await setKey($('importKey').value); $('importKey').value=''; toast('Key added · '+cryptoKeys.fp); syncPending(true); }
+    catch(e){ toast(e.message); }
+  };
+  $('loadKeyFileBtn').onclick = () => $('keyFile').click();
+  $('keyFile').addEventListener('change', async e => {
+    const f = e.target.files[0]; e.target.value=''; if(!f) return;
+    const m = (await f.text()).match(/RLK1-[A-Za-z0-9_-]+/);
+    if(!m) return toast('No Repair Logger key found in that file');
+    try{ await setKey(m[0]); toast('Key added · '+cryptoKeys.fp); syncPending(true); }catch(err){ toast(err.message); }
+  });
+  $('forgetKeyBtn').onclick = () => {
+    if(!confirm('Remove the key from this device? Make sure you have it saved elsewhere, or you won’t be able to read your GitHub data.')) return;
+    store.set('encKey', null); store.set('keyVerified', null); store.set('ghJobCache', {}); cryptoKeys = null; renderKeyStatus(); renderSaveLoc();
+  };
+  // App update
+  $('uploadAppBtn').onclick = () => {
+    if(!ghToken() || !settings.ghOwner || !settings.appRepo) return toast('Set your GitHub username, token and app repository first');
+    $('appFile').click();
+  };
+  $('appFile').addEventListener('change', async e => {
+    const f = e.target.files[0]; e.target.value=''; if(!f) return;
+    const st = $('appStatus'); st.style.color='var(--muted)';
+    const text = await f.text();
+    if(!/Repair Logger/.test(text) && !confirm('This file doesn’t look like Repair Logger. Upload it anyway?')) return;
+    const ver = (text.match(/APP_VERSION\s*=\s*'([^']+)'/)||[])[1] || 'unknown';
+    if(!confirm(`Replace the app in ${settings.ghOwner}/${settings.appRepo} with version ${ver}?`)) return;
+    st.textContent = 'Uploading…';
+    try{
+      await ghPut(settings.appRepo, settings.appBranch||'main', settings.appPath||'index.html', te.encode(text), `Update Repair Logger app to ${ver}`);
+      const o = settings.ghOwner.toLowerCase();
+      const url = settings.appRepo.toLowerCase()===o+'.github.io' ? `https://${o}.github.io/` : `https://${o}.github.io/${settings.appRepo}/`;
+      st.innerHTML=''; st.style.color='var(--ok)';
+      st.append(`✓ Uploaded version ${ver}. GitHub Pages will publish it in about a minute at `);
+      const a=document.createElement('a'); a.href=url; a.target='_blank'; a.rel='noopener'; a.textContent=url; st.append(a, '. Then tap Reload app.');
+    }catch(err){ st.textContent = 'Upload failed: '+err.message; st.style.color='var(--err)'; }
+  });
+  $('checkUpdateBtn').onclick = async () => {
+    const st = $('appStatus'); st.style.color='var(--muted)'; st.textContent='Checking…';
+    try{
+      const t = await (await fetch(redirectUri+'?v='+Date.now(), {cache:'no-store'})).text();
+      const v = (t.match(/APP_VERSION\s*=\s*'([^']+)'/)||[])[1];
+      if(!v) throw new Error('version not found');
+      if(v===APP_VERSION){ st.textContent='✓ You have the latest version ('+v+').'; st.style.color='var(--ok)'; }
+      else { st.textContent='Version '+v+' is available. Tap Reload app.'; st.style.color='var(--warn)'; }
+    }catch(err){ st.textContent='Could not check: '+err.message; st.style.color='var(--warn)'; }
+  };
+  $('reloadAppBtn').onclick = () => { location.href = redirectUri+'?v='+Date.now(); };
+  renderKeyStatus();
+}
+function downloadKey(){
+  const k = store.get('encKey',''); if(!k) return;
+  const txt = `Repair Logger encryption key\r\nFingerprint: ${cryptoKeys.fp}\r\nCreated/saved: ${fmt(localInput(new Date()))}\r\n\r\n${k}\r\n\r\nKeep this file private. Anyone with this key and access to your repository can read your jobs.\r\nIf you lose it, data saved with it cannot be recovered.\r\n`;
+  const file = new File([txt], `RepairLogger-key-${cryptoKeys.fp}.txt`, {type:'text/plain'});
+  if(navigator.canShare && navigator.canShare({files:[file]}) && matchMedia('(max-width: 899px)').matches) navigator.share({files:[file]}).catch(()=>{});
+  else download(file);
+}
+function showModeSettings(){
+  renderSaveLoc();
+  $('ghSettings').classList.toggle('hidden', settings.mode!=='github');
+  $('keyCard').classList.toggle('hidden', settings.mode!=='github');
+  $('folderSettings').classList.toggle('hidden', settings.mode!=='folder');
+  $('csvField').classList.toggle('hidden', !remoteMode() || settings.mode==='github');
+  $('odSettings').classList.toggle('hidden', settings.mode!=='onedrive');
+  $('shareSettings').classList.toggle('hidden', settings.mode!=='share');
+}
+
+// ---------- Init ----------
+await loadKey();
+renderDurChips(); loadDraft(); renderTagChips(); renderTagEditor(); bindSettings(); renderPending();
+if(store.get('importedCfg', false)){ store.set('importedCfg', false); toast('Settings imported. Finish setup here (sign-in, token or key).'); showTab('settings'); }
+// Wide screens (PC) open on the dashboard
+else if(window.matchMedia('(min-width: 900px)').matches && !new URLSearchParams(location.search).has('code')) showTab('dash');
+updateOdStatus();
+handleRedirect().then(()=>{ if(navigator.onLine) syncPending(true); });
+window.addEventListener('online', () => syncPending(true));
+})();
+</script>
+</body>
+</html>
