@@ -477,12 +477,12 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
     <div class="field"><label for="agRoomPrefix" style="font-weight:400">Room search prefix</label><input id="agRoomPrefix" placeholder="%" style="max-width:120px">
       <div class="hint">Typed before the room code (e.g. <code>%B-L10539</code>) so Agility searches; the matching result is then picked from the list.</div></div>
     <div class="field"><label for="agAssetTag" style="font-weight:400">Asset ID (as text, after the dropdowns) →</label><input id="agAssetTag" placeholder="MES Asset Tag Number, #598710, >Additional Comments"></div>
-    <div class="field"><label for="agResponse" style="font-weight:400">Response time (start + minutes) →</label>
-      <div class="row"><input id="agResponse" placeholder="Response Date/Time"><input id="agResponseMins" type="number" min="0" max="240" placeholder="5" style="max-width:90px;flex:none" title="Minutes after the start time"></div>
-      <div class="hint">Minutes after the start time (default 5).</div></div>
+    <div class="field"><label for="agReqMinus" style="font-weight:400">Request details date = start time minus (minutes)</label><input id="agReqMinus" type="number" min="0" max="240" placeholder="5" style="max-width:120px"><div class="hint">The date box under the 5 questions. Response Date/Time gets the start time, Completion Date the end time.</div></div>
+    <div class="field"><label for="agResponse" style="font-weight:400">Start time →</label>
+      <input id="agResponse" placeholder="Response Date/Time"></div>
     <div class="field"><label for="agFault" style="font-weight:400">Fault →</label><input id="agFault" placeholder="Additional Comments"></div>
     <div class="field"><label for="agResolution" style="font-weight:400">Resolution →</label><input id="agResolution" placeholder="Comments"></div>
-    <div class="field"><label for="agStart" style="font-weight:400">Start time →</label><input id="agStart" placeholder="Please enter your request details here, Response Date/Time">
+    <div class="field"><label for="agStart" style="font-weight:400">Start time − 5 min →</label><input id="agStart" placeholder="Please enter your request details here, Response Date/Time">
       <div class="hint">A section heading works too: the first box after it is filled (the date under “Please enter your request details here”).</div></div>
     <div class="field"><label for="agEnd" style="font-weight:400">End time →</label><input id="agEnd" placeholder="Completion Date"></div>
     <button class="btn small" id="agResetBtn" type="button">Reset to defaults</button>
@@ -536,7 +536,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 <script type="text/plain" id="lockedScript"></script>
 <script>
 (async () => {
-const APP_VERSION = '2.18.1';
+const APP_VERSION = '2.19.0';
 const FILL_LATEST = '3.7.1'; // the Fill AGL / Fill EAM script this app expects
 const $ = id => document.getElementById(id);
 const store = {
@@ -554,7 +554,7 @@ const DEFAULT_SETTINGS = {
   odClient: '',
   ghOwner: '', ghRepo: 'repair-logs', ghBranch: 'main', ghFolder: '',
   appRepo: 'repair-logger', appBranch: 'main', appPath: 'index.html',
-  agAsset: 'Equipment, Reported Equipment', agAssetTag: 'MES Asset Tag Number, #598710, >Additional Comments', agResponse: 'Response Date/Time', agResponseMins: '5', agFault: 'Additional Comments', agResolution: 'Comments',
+  agAsset: 'Equipment, Reported Equipment', agAssetTag: 'MES Asset Tag Number, #598710, >Additional Comments', agResponse: 'Response Date/Time', agResponseMins: '5', agReqMinus: '5', agFault: 'Additional Comments', agResolution: 'Comments',
   agStart: 'Please enter your request details here', agEnd: 'Completion Date', agDecouple: 'Decouple Asset?', agRoom: 'Room Number', agRoomUncheck: 'Use my default room for this request', agRoomPrefix: '%', agHelper: true, agAutoComplete: false,
   snNewUrl: '', snAssignee: 'Keith Nissanka', snAsset: 'Asset', snAssigned: 'Assigned To', snSummary: 'Order Summary', snInfo: 'Additional Information, Order Description', snAglRef: 'Agility Reference', snWait: '2', snTable: 'x_nuvo_eam_clinical_work_orders', snKeepValues: 'Work Order Type=Corrective Maintenance\nInitiation Reason=Equipment Fault', agWaitRoom: '2', agWaitDecouple: '2', agWaitEquipment: '3', agWaitDropdown: '2', agWaitMes: '5', agWaitFields: '8',
   agTriage: 'Medical Equipment Repair - Portable Equipment\nGeneral equipment\nDevice CAN still be used\nCleaning IS NOT required prior to repair\nNO immediate health and safety risk to patients or property', agDelay: '2',
@@ -1566,23 +1566,32 @@ async function setStatus(j, status){
 // ---------- Agility ----------
 const labelsOf = k => (settings[k]||'').split(',').map(x=>x.trim()).filter(Boolean);
 // Response time = start time + N minutes (5 by default)
-function responseTime(j){
+// Request details date = start time minus N minutes (5 by default)
+function requestTime(j){
   if(!j.start) return '';
   const d = new Date(j.start.replace(' ','T')); if(isNaN(d)) return '';
-  d.setMinutes(d.getMinutes() + (parseFloat(settings.agResponseMins) || 0));
+  const m = parseFloat(settings.agReqMinus); d.setMinutes(d.getMinutes() - (isNaN(m) ? 5 : m));
   return localInput(d).replace('T',' ');
 }
+// Agility's date boxes need a two-digit hour: 19/11/2026 03:15 PM (3:15 PM shifts the minutes and AM/PM)
+const fmtAgl = v => {
+  if(!v) return '';
+  const d = new Date(String(v).replace(' ','T')); if(isNaN(d)) return String(v);
+  const h = d.getHours();
+  return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(h%12||12)}:${pad(d.getMinutes())} ${h<12?'AM':'PM'}`;
+};
 const secs = (k, d) => { const v = parseFloat(settings[k]); return Math.round((isNaN(v) ? d : v)*1000); };
 const aglWaits = () => ({room:secs('agWaitRoom',2), decouple:secs('agWaitDecouple',2), equipment:secs('agWaitEquipment',3), dropdown:secs('agWaitDropdown',2), mes:secs('agWaitMes',5), fields:secs('agWaitFields',8)});
 function agilityPayload(j){
   const fields = [];
   const add = (k, value, iso) => labelsOf(k).forEach(label => fields.push(Object.assign({label, key:k, value: value ?? ''}, iso ? {iso} : {}, k==='agAsset' ? {asset:true} : {}, k==='agRoom' ? {room:true, search:settings.agRoomPrefix||''} : {}, k==='agAssetTag' ? {typed:true} : {})));
-  const resp = responseTime(j);
+  const req = requestTime(j);
   add('agRoom', (j.room||'').replace(/^%+/,'')); add('agAsset', j.asset);
-  add('agStart', fmt(j.start), j.start ? j.start.replace(' ','T') : null);
+  add('agStart', fmtAgl(req), req ? req.replace(' ','T') : null);           // under the 5 questions: start − 5 min
   add('agFault', j.fault); add('agAssetTag', j.asset);
-  add('agResponse', resp ? fmt(resp) : '', resp ? resp.replace(' ','T') : null);
-  add('agEnd', fmt(j.end), j.end ? j.end.replace(' ','T') : null); add('agResolution', j.resolution);
+  add('agResponse', fmtAgl(j.start), j.start ? j.start.replace(' ','T') : null); // Response Date/Time: start
+  add('agEnd', fmtAgl(j.end), j.end ? j.end.replace(' ','T') : null);            // Completion Date: end
+  add('agResolution', j.resolution);
   return 'REPAIRLOGGER:'+JSON.stringify({v:1, id:j.id, asset:j.asset, decouple:(settings.agDecouple||'').trim(), uncheck:(settings.agRoomUncheck||'').trim(), triage:(settings.agTriage||'').split('\n').map(x=>x.trim()).filter(Boolean), delay:Math.round((parseFloat(settings.agDelay)||2)*1000), waits:aglWaits(), fields});
 }
 // AGL helper: a small window beside Agility with each value ready to copy, in form order.
@@ -1592,11 +1601,11 @@ function aglItems(j){
   return [
     {label:first('agRoom')||'Room Number', also:others('agRoom'), value:j.room ? (settings.agRoomPrefix||'')+j.room.replace(/^%+/,'') : '', note:j.room ? 'paste, then pick the room from Agility’s list' : ''},
     {label:first('agAsset')||'Equipment', also:others('agAsset'), value:j.asset||''},
-    {label:'Start time', also:'date box under “Please enter your request details here”', value:fmt(j.start)},
+    {label:'Request date', also:'date box under the 5 questions (start − '+(isNaN(parseFloat(settings.agReqMinus))?5:parseFloat(settings.agReqMinus))+' min)', value:fmtAgl(requestTime(j))},
     {label:first('agFault')||'Additional Comments', also:others('agFault'), value:j.fault||''},
     {label:first('agAssetTag')||'MES Asset Tag Number', also:'appears after the dropdowns', value:j.asset||''},
-    {label:first('agResponse')||'Response Date/Time', also:'start + '+(parseFloat(settings.agResponseMins)||0)+' min', value:responseTime(j) ? fmt(responseTime(j)) : ''},
-    {label:'End time', also:first('agEnd')||'Completion Date', value:fmt(j.end)},
+    {label:first('agResponse')||'Response Date/Time', also:'start time', value:fmtAgl(j.start)},
+    {label:'End time', also:first('agEnd')||'Completion Date', value:fmtAgl(j.end)},
     {label:first('agResolution')||'Comments', also:others('agResolution'), value:j.resolution||''},
   ];
 }
@@ -1947,7 +1956,7 @@ function bindSettings(){
     r.checked = r.value===settings.mode;
     r.onchange = () => { settings.mode=r.value; saveSettings(); showModeSettings(); };
   });
-  ['defaultRoom','odFolder','odFile','odClient','odTenant','shareFile','ghOwner','ghRepo','ghBranch','ghFolder','appRepo','appBranch','appPath','agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom','agRoomUncheck','agRoomPrefix','agTriage','agAssetTag','agResponse','agResponseMins','agWaitRoom','agWaitDecouple','agWaitEquipment','agWaitDropdown','agWaitMes','agWaitFields','snNewUrl','snAssignee','snAsset','snAssigned','snSummary','snInfo','snAglRef','snWait','snTable','snKeepValues'].forEach(k=>{
+  ['defaultRoom','odFolder','odFile','odClient','odTenant','shareFile','ghOwner','ghRepo','ghBranch','ghFolder','appRepo','appBranch','appPath','agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom','agRoomUncheck','agRoomPrefix','agTriage','agAssetTag','agResponse','agReqMinus','agWaitRoom','agWaitDecouple','agWaitEquipment','agWaitDropdown','agWaitMes','agWaitFields','snNewUrl','snAssignee','snAsset','snAssigned','snSummary','snInfo','snAglRef','snWait','snTable','snKeepValues'].forEach(k=>{
     $(k).value = settings[k]||'';
     $(k).addEventListener('change', ()=>{ settings[k]=$(k).value.trim(); saveSettings(); renderSaveLoc(); });
   });
@@ -1993,12 +2002,12 @@ function bindSettings(){
     }catch(e){ extStatus('Could not download: '+e.message, 'err'); }
   };
   $('agResetBtn').onclick = () => {
-    ['agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom','agRoomUncheck','agRoomPrefix','agTriage','agAssetTag','agResponse','agResponseMins','agWaitRoom','agWaitDecouple','agWaitEquipment','agWaitDropdown','agWaitMes','agWaitFields'].forEach(k=>{ settings[k]=DEFAULT_SETTINGS[k]; $(k).value=settings[k]; });
+    ['agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom','agRoomUncheck','agRoomPrefix','agTriage','agAssetTag','agResponse','agReqMinus','agWaitRoom','agWaitDecouple','agWaitEquipment','agWaitDropdown','agWaitMes','agWaitFields'].forEach(k=>{ settings[k]=DEFAULT_SETTINGS[k]; $(k).value=settings[k]; });
     saveSettings(); toast('Agility fields reset');
   };
   $('setupLinkBtn').onclick = async () => {
-    const {defaultRoom, mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom, agRoomUncheck, agRoomPrefix, agTriage, agAssetTag, agResponse, agResponseMins, agWaitRoom, agWaitDecouple, agWaitEquipment, agWaitDropdown, agWaitMes, agWaitFields, agHelper, agAutoComplete, snNewUrl, snAssignee, snAsset, snAssigned, snSummary, snInfo, snAglRef, snWait, snTable, snKeepValues} = settings;
-    const enc = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({defaultRoom, mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom, agRoomUncheck, agRoomPrefix, agTriage, agAssetTag, agResponse, agResponseMins, agWaitRoom, agWaitDecouple, agWaitEquipment, agWaitDropdown, agWaitMes, agWaitFields, agHelper, agAutoComplete, snNewUrl, snAssignee, snAsset, snAssigned, snSummary, snInfo, snAglRef, snWait, snTable, snKeepValues})))));
+    const {defaultRoom, mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom, agRoomUncheck, agRoomPrefix, agTriage, agAssetTag, agResponse, agResponseMins, agReqMinus, agWaitRoom, agWaitDecouple, agWaitEquipment, agWaitDropdown, agWaitMes, agWaitFields, agHelper, agAutoComplete, snNewUrl, snAssignee, snAsset, snAssigned, snSummary, snInfo, snAglRef, snWait, snTable, snKeepValues} = settings;
+    const enc = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({defaultRoom, mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd, agDecouple, agRoom, agRoomUncheck, agRoomPrefix, agTriage, agAssetTag, agResponse, agResponseMins, agReqMinus, agWaitRoom, agWaitDecouple, agWaitEquipment, agWaitDropdown, agWaitMes, agWaitFields, agHelper, agAutoComplete, snNewUrl, snAssignee, snAsset, snAssigned, snSummary, snInfo, snAglRef, snWait, snTable, snKeepValues})))));
     const link = redirectUri+'#cfg='+enc;
     try{ await navigator.clipboard.writeText(link); toast('Setup link copied'); }catch{ prompt('Copy this link:', link); }
   };
