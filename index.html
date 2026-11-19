@@ -375,6 +375,10 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
         <a class="btn primary" id="agilityBookmarklet" href="#">⚡ Fill AGL</a>
         <button class="btn" id="copyBookmarkletBtn" type="button">Copy bookmark code</button>
       </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" id="copySnippetBtn" type="button">Copy code for DevTools</button>
+      </div>
+      <div class="hint">If Agility blocks the bookmark (nothing happens when you click it), use DevTools instead: on the Agility page press <b>F12</b> › <b>Sources</b> › <b>Snippets</b> (under the » arrows) › <b>+ New snippet</b>, name it “Fill AGL”, paste the copied code and press Ctrl+S. From then on: F12 › Snippets › right-click Fill AGL › <b>Run</b> (or Ctrl+Enter).</div>
       <div class="hint">Drag the <b>⚡ Fill AGL</b> button onto your browser’s bookmarks bar (press Ctrl+Shift+B to show the bar). If dragging is blocked, right-click the bookmarks bar › Add page, name it “Fill AGL”, and paste the copied code as the URL.</div>
     </div>
     <div class="field">
@@ -403,7 +407,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 
 <script>
 (async () => {
-const APP_VERSION = '1.7.1';
+const APP_VERSION = '1.7.2';
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -1425,6 +1429,7 @@ function agilityFiller(){
     else askPaste('Couldn’t read a job from the clipboard. In Repair Logger press “→ AGL” on a job, then paste it here (Ctrl+V).');
   })();
 }
+const snippetCode = () => '// Fill AGL (Repair Logger '+APP_VERSION+'). Fills the Agility form; never clicks Complete.\n('+agilityFiller.toString().replace('APPVER', APP_VERSION)+')();\n';
 const bookmarkletCode = () => 'javascript:'+encodeURIComponent('('+agilityFiller.toString().replace('APPVER', APP_VERSION)+')()');
 async function renderDash(){
   const q = $('dashSearch').value.trim().toLowerCase();
@@ -1490,6 +1495,9 @@ function bindSettings(){
   bm.onclick = e => { e.preventDefault(); toast('Drag this button to your bookmarks bar. Don’t click it here.'); };
   $('copyBookmarkletBtn').onclick = async () => {
     try{ await navigator.clipboard.writeText(bookmarkletCode()); toast('Bookmark code copied'); }catch{ prompt('Copy this bookmark code:', bookmarkletCode()); }
+  };
+  $('copySnippetBtn').onclick = async () => {
+    try{ await navigator.clipboard.writeText(snippetCode()); toast('DevTools code copied'); }catch{ prompt('Copy this code:', snippetCode()); }
   };
   $('agResetBtn').onclick = () => {
     ['agAsset','agFault','agResolution','agStart','agEnd','agDecouple'].forEach(k=>{ settings[k]=DEFAULT_SETTINGS[k]; $(k).value=settings[k]; });
