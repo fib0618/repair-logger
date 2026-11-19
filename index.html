@@ -220,6 +220,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
       <input id="photoPick" type="file" accept="image/*" multiple class="hidden">
       <div class="thumbs" id="photoThumbs"></div>
     </div>
+    <label class="radio" style="margin:4px 0 12px"><input type="checkbox" id="eamFlag"><span><b>Log in EAM (ServiceNow) too</b><br><span class="hint">After the Agility WO# arrives, Auto EAM creates the ServiceNow Work Order.</span></span></label>
     <button class="btn primary block" id="saveBtn" type="button">Save job</button>
     <button class="btn block" id="clearBtn" type="button" style="margin-top:8px">🧹 Clear form</button>
     <div class="status" id="saveStatus"></div>
@@ -249,6 +250,12 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
     <button class="btn" id="dashRefresh" type="button">↻ Refresh</button>
     <button class="btn" id="dashExport" type="button">⬇ Export CSV</button>
     <button class="btn" id="dashPasteWo" type="button" title="Add the WO# copied by Fill AGL (or Fill EAM) to its job">📋 Paste WO#</button>
+  </div>
+  <div class="dash-bar" id="autoBar">
+    <button class="btn" id="autoLogBtn" type="button" title="Keep logging new Dashboard jobs into Agility (opens the Agility tab)">🔁 Auto log: Off</button>
+    <button class="btn" id="runAglBtn" type="button" title="Log the jobs waiting now into Agility, then stop">▶ Run AGL</button>
+    <button class="btn" id="autoEamBtn" type="button" title="Create ServiceNow Work Orders for EAM jobs once their AGL WO# is in (opens ServiceNow)">🔁 Auto EAM: Off</button>
+    <span class="hint" id="autoStatus" style="flex:1;min-width:200px"></span>
   </div>
   <div class="hint" id="dashSource" style="margin:-4px 0 10px"></div>
   <div class="table-wrap">
@@ -430,6 +437,14 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
     <div class="hint" style="margin:0 0 10px">Press <b>→ AGL</b> on a job in the Dashboard. It copies the job and opens a helper window with each value in Agility’s order (click to copy, or load all into Win+V). With the Fill AGL extension installed in Edge, just click <b>⚡ Fill AGL</b> on the Agility form instead.</div>
     <label class="radio" style="margin:0 0 10px"><input type="checkbox" id="agAutoComplete">
       <span><b>Mark the job Completed when I press → AGL</b><br><span class="hint">Usually off: jobs go AGL done (green, WO# captured) → EAM done (purple) → Completed.</span></span></label>
+    <div class="field">
+      <label>Auto log / Run AGL (Dashboard buttons)</label>
+      <div class="hint" style="margin:0 0 8px">Log Dashboard jobs into Agility by themselves: opens the Agility menu, clicks the button below, runs Fill AGL, presses Complete after the countdown, and saves the WO#. Be logged in to Agility. If Edge blocks the Agility tab, allow pop-ups for Repair Logger.</div>
+      <div class="field"><label for="agAutoUrl" style="font-weight:400">Agility menu page</label><input id="agAutoUrl" placeholder="https://agility/Agility/MainMenuDashboard.aspx#" spellcheck="false"></div>
+      <div class="field"><label for="agAddLabel" style="font-weight:400">Menu item to open a new request</label><input id="agAddLabel" placeholder="Add Completed Self-Service Request"></div>
+      <div class="field"><label for="agAutoLimit" style="font-weight:400">Safety limit: turn off after this many jobs (Auto log, Run AGL and Auto EAM each)</label><input id="agAutoLimit" type="number" min="1" max="200" placeholder="20" style="max-width:100px"></div>
+      <div class="field"><label for="agAutoEvery" style="font-weight:400">Auto log: check for new jobs every (minutes)</label><input id="agAutoEvery" type="number" min="1" max="60" placeholder="3" style="max-width:100px"></div>
+    </div>
     <label class="radio" style="margin:0 0 6px"><input type="checkbox" id="agAutoSubmit">
       <span><b>Press Agility’s Complete button for me after a countdown</b><br><span class="hint">After filling, the panel counts down and then presses Complete. Cancel (or Esc) stops it. It never presses Complete if something needs checking.</span></span></label>
     <div class="field" style="margin:0 0 12px 28px"><label for="agSubmitSecs" style="font-weight:400">Countdown (seconds)</label><input id="agSubmitSecs" type="number" min="3" max="60" placeholder="10" style="max-width:100px"></div>
@@ -539,8 +554,8 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 <script type="text/plain" id="lockedScript"></script>
 <script>
 (async () => {
-const APP_VERSION = '2.20.1';
-const FILL_LATEST = '3.8.1'; // the Fill AGL / Fill EAM script this app expects
+const APP_VERSION = '2.22.1';
+const FILL_LATEST = '4.1.0'; // the Fill AGL / Fill EAM script this app expects
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -559,6 +574,7 @@ const DEFAULT_SETTINGS = {
   appRepo: 'repair-logger', appBranch: 'main', appPath: 'index.html',
   agAsset: 'Equipment, Reported Equipment', agAssetTag: 'MES Asset Tag Number, #598710, >Additional Comments', agResponse: 'Response Date/Time', agResponseMins: '5', agReqMinus: '5', agFault: 'Additional Comments', agResolution: 'Comments',
   agStart: 'Please enter your request details here', agEnd: 'Completion Date', agDecouple: 'Decouple Asset?', agRoom: 'Room Number', agRoomUncheck: 'Use my default room for this request', agRoomPrefix: '%', agHelper: true, agAutoComplete: false, agAutoSubmit: true, agSubmitSecs: '10',
+  agAutoLimit: '20', agAutoUrl: 'https://agility/Agility/MainMenuDashboard.aspx#', agAddLabel: 'Add Completed Self-Service Request', agAutoEvery: '3',
   snNewUrl: '', snAssignee: 'Keith Nissanka', snAsset: 'Asset', snAssigned: 'Assigned To', snSummary: 'Order Summary', snInfo: 'Additional Information, Order Description', snAglRef: 'Agility Reference', snWait: '2', snTable: 'x_nuvo_eam_clinical_work_orders', snKeepValues: 'Work Order Type=Corrective Maintenance\nInitiation Reason=Equipment Fault', agWaitRoom: '2', agWaitDecouple: '2', agWaitEquipment: '3', agWaitDropdown: '2', agWaitMes: '5', agWaitFields: '8',
   agTriage: 'Medical Equipment Repair - Portable Equipment\nGeneral equipment\nDevice CAN still be used\nCleaning IS NOT required prior to repair\nNO immediate health and safety risk to patients or property', agDelay: '2',
   odTenant: 'common',
@@ -1216,7 +1232,7 @@ $('saveBtn').onclick = async () => {
     start: $('start').value.replace('T',' '),
     end: $('end').value.replace('T',' '),
     durationMin: ($('start').value && $('end').value) ? Math.round((new Date($('end').value)-new Date($('start').value))/60000) : '',
-    photos, status: 'open', completedAt: null,
+    photos, status: 'open', completedAt: null, eam: $('eamFlag').checked,
     synced: false
   };
   logs.unshift(job); saveLogs();
@@ -1242,6 +1258,8 @@ $('saveBtn').onclick = async () => {
   setTimesManual(false); setEndNow(); renderTagChips();
 };
 
+$('eamFlag').checked = !!settings.eamLast;
+$('eamFlag').addEventListener('change', () => { settings.eamLast = $('eamFlag').checked; saveSettings(); });
 $('clearBtn').onclick = () => {
   const hasData = ['room','asset','fault','resolution'].some(f=>$(f).value.trim()) || draftPhotos.length;
   if(hasData && !confirm('Clear the form? Nothing is saved.')) return;
@@ -1490,11 +1508,12 @@ function editJob(j){
       <div class="field" style="flex:1;min-width:180px"><label>End time</label><input type="datetime-local" data-k="end"></div></div>
     <div class="row"><div class="field" style="flex:1;min-width:160px"><label>AGL WO#</label><input data-k="aglWo" inputmode="numeric" placeholder="e.g. 10545336"></div>
       <div class="field" style="flex:1;min-width:160px"><label>EAM (ServiceNow) WO#</label><input data-k="eamWo" placeholder="e.g. CWKD1096073"></div></div>
+    <label class="radio"><input type="checkbox" data-k="eamFlag"><span>Log in EAM (ServiceNow) — Auto EAM picks it up after the AGL WO#</span></label>
     <label class="radio"><input type="checkbox" data-k="eam"><span>EAM done (ServiceNow entered)</span></label>
     <div class="row" style="margin-top:12px;justify-content:flex-end"><button class="btn" data-x type="button">Cancel</button><button class="btn primary" data-save type="button">Save changes</button></div></div>`;
   const q = k => bg.querySelector('[data-k="'+k+'"]');
   ['room','asset','fault','resolution','aglWo','eamWo'].forEach(k => q(k).value = j[k]||'');
-  q('start').value = toInput(j.start); q('end').value = toInput(j.end); q('eam').checked = !!j.eamAt;
+  q('start').value = toInput(j.start); q('end').value = toInput(j.end); q('eam').checked = !!j.eamAt; q('eamFlag').checked = !!j.eam;
   bg.querySelector('[data-x]').onclick = () => bg.remove();
   bg.onclick = e => { if(e.target===bg) bg.remove(); };
   bg.querySelector('[data-save]').onclick = async () => {
@@ -1505,7 +1524,7 @@ function editJob(j){
       tags:[...new Set((res.match(/#[\w-]+/g)||[]).map(t=>t.toUpperCase()))],
       start:st.replace('T',' '), end:en.replace('T',' '),
       durationMin:(st && en) ? Math.round((new Date(en)-new Date(st))/60000) : '',
-      aglWo:wo, aglAt: wo ? (j.aglAt || now) : null, eamWo:q('eamWo').value.trim(), eamAt: (q('eam').checked || q('eamWo').value.trim()) ? (j.eamAt || now) : null};
+      aglWo:wo, aglAt: wo ? (j.aglAt || now) : null, eam:q('eamFlag').checked, eamWo:q('eamWo').value.trim(), eamAt: (q('eam').checked || q('eamWo').value.trim()) ? (j.eamAt || now) : null};
     bg.querySelector('[data-save]').disabled = true;
     const ok = await updateJob(j, ch); bg.remove(); renderDash(); if(ok) toast('Job updated');
   };
@@ -1519,22 +1538,166 @@ async function applyEam(d){
   if(!j){ toast('ServiceNow number '+(d.wo||'')+' received, but its job wasn’t found'); return; }
   if(j.eamAt && j.eamWo===d.wo) return;
   const now = localInput(new Date()).replace('T',' ');
-  const ok = await updateJob(j, {eamWo: d.wo || '', eamAt: now, status: 'completed', completedAt: now});
+  const ok = await updateJob(j, {eamWo: d.wo || '', eamAt: now});
   if(currentTab==='dash') renderDash();
-  if(ok) toast(`${j.asset}: EAM done${d.wo ? ' ('+d.wo+')' : ''}, moved to Completed`);
+  if(ok) toast(`${j.asset}: EAM ✓${d.wo ? ' ('+d.wo+')' : ''}. Mark it Completed when you’re ready.`);
+}
+// ---------- Auto EAM: the ServiceNow tab (bookmark clicked once) creates Work Orders for EAM jobs ----------
+let snWin = null, eamAuto = false, eamCurrent = null, eamSent = 0, eamStarted = 0, eamPoll = null, eamLinked = false;
+const eamQueue = () => dashJobs.filter(j => j.eam && j.aglWo && !j.eamAt && !j.snAt).sort((a,b) => String(a.id).localeCompare(String(b.id)));
+function eamStatus(t){ autoStatus('EAM: '+t); }
+function renderEamBtn(){ const b = $('autoEamBtn'); if(!b) return; b.textContent = '🔁 Auto EAM: '+(eamAuto ? 'On' : 'Off'); b.classList.toggle('primary', eamAuto); }
+function eamStop(reason){
+  eamAuto = false; eamCurrent = null; clearInterval(eamPoll); eamPoll = null;
+  try{ if(snWin && !snWin.closed) snWin.postMessage({rl:'eam-off'}, '*'); }catch{}
+  eamStatus(reason ? 'stopped: '+reason+'.' : 'Auto EAM off.'); renderEamBtn();
+}
+function eamWake(){
+  if(!eamAuto || eamCurrent) return;
+  if(!snWin || snWin.closed){ eamStop('the ServiceNow tab was closed'); return; }
+  if(eamQueue().length) try{ snWin.postMessage({rl:'eam-wake'}, '*'); }catch{}
+  else eamStatus(eamLinked ? 'on · '+eamSent+' created · waiting for EAM jobs with an AGL WO#' : 'click the ⚡ Fill EAM bookmark in the ServiceNow tab once to start');
+}
+$('autoEamBtn').onclick = async () => {
+  if(eamAuto) return eamStop(null);
+  const url = settings.snNewUrl || 'https://healthineers.service-now.com/';
+  if(!snWin || snWin.closed) snWin = window.open(url, 'rl-servicenow');
+  if(!snWin) return toast('Edge blocked the ServiceNow tab. Allow pop-ups for Repair Logger, then press again.');
+  if(!dashJobs.length) await loadDashboard();
+  eamAuto = true; eamCurrent = null; eamSent = 0; eamLinked = false; renderEamBtn();
+  eamStatus('In the ServiceNow tab, click the ⚡ Fill EAM bookmark once. It then keeps working while the tab stays open.');
+  clearInterval(eamPoll);
+  eamPoll = setInterval(async () => {
+    if(!eamAuto) return;
+    if(eamCurrent && Date.now() - eamStarted > 8*60000){ eamStatus('no answer from ServiceNow for '+eamCurrent.asset+', skipped it'); eamCurrent = null; }
+    if(!eamCurrent){ await loadDashboard(); eamWake(); }
+  }, (parseFloat(settings.agAutoEvery)||3) * 60000);
+};
+async function eamHello(e){
+  eamLinked = true;
+  const secs = parseFloat(settings.agSubmitSecs) || 10;
+  if(!eamCurrent){
+    if(eamSent >= autoLimit()){ e.source.postMessage({rl:'idle', secs, reason:'Safety limit reached.'}, e.origin); eamStop('reached the safety limit of '+autoLimit()+' jobs. Press Auto EAM again to continue'); return; }
+    await loadDashboard(); // fresh copy: skip anything already created from another PC
+    const j = eamQueue()[0];
+    if(!j){ e.source.postMessage({rl:'idle', secs}, e.origin); eamWake(); return; }
+    eamCurrent = j; eamStarted = Date.now();
+    const ok = await updateJob(j, {snAt: localInput(new Date()).replace('T',' ')}); renderDash();
+    if(!ok){ eamCurrent = null; e.source.postMessage({rl:'idle', secs}, e.origin); eamStop('couldn’t save that '+j.asset+' was sent, so it wasn’t sent (no duplicates)'); return; }
+    eamSent++;
+  }
+  e.source.postMessage({rl:'job', auto:true, secs, text:snPayload(eamCurrent)}, e.origin);
+  eamStatus('creating the Work Order for '+eamCurrent.asset+'…');
 }
 // Direct link with the ServiceNow tab that → EAM opened (like Service Report Helper's EAM link)
 let pendingSn = null;
 const isSnOrigin = o => { try{ const h = new URL(o).hostname; return /(^|\.)service-now\.com$|(^|\.)servicenowservices\.com$/i.test(h) || (snHost() && h===snHost()); }catch{ return false; } };
+// ---------- Auto log / Run AGL: Repair Logger drives the Agility tab it opened ----------
+const autoLimit = () => Math.max(1, parseInt(settings.agAutoLimit) || 20);
+let autoSent = 0;
+let aglWin = null, autoMode = 'off', autoCurrent = null, autoStarted = 0, runIds = null, autoDone = 0, autoStopped = 0, autoPoll = null;
+const aglOrigin = () => { try{ return new URL(settings.agAutoUrl || DEFAULT_SETTINGS.agAutoUrl).origin; }catch{ return 'https://agility'; } };
+const waitingJobs = () => dashJobs.filter(j => j.status!=='completed' && !j.aglWo && !j.agilityAt).sort((a,b) => String(a.id).localeCompare(String(b.id)));
+const autoQueue = () => autoMode==='run' ? waitingJobs().filter(j => runIds && runIds.includes(j.id)) : waitingJobs();
+function autoStatus(t){ const el = $('autoStatus'); if(el) el.textContent = t; }
+function renderAutoBtns(){
+  const a = $('autoLogBtn'), r = $('runAglBtn'); if(!a) return;
+  a.textContent = '🔁 Auto log: '+(autoMode==='auto' ? 'On' : 'Off'); a.classList.toggle('primary', autoMode==='auto');
+  const n = waitingJobs().length;
+  r.textContent = autoMode==='run' ? '■ Stop run' : '▶ Run AGL'+(n ? ' ('+n+')' : '');
+  r.classList.toggle('primary', autoMode==='run'); r.disabled = autoMode==='auto';
+}
+function openAgl(){
+  if(!aglWin || aglWin.closed) aglWin = window.open(settings.agAutoUrl || DEFAULT_SETTINGS.agAutoUrl, 'rl-agility');
+  if(!aglWin){ toast('Edge blocked the Agility tab. Allow pop-ups for Repair Logger (icon in the address bar), then press again.'); return false; }
+  return true;
+}
+function autoWake(){
+  if(autoMode==='off' || autoCurrent) return;
+  if(!aglWin || aglWin.closed){ autoStop('the Agility tab was closed'); return; }
+  if(!autoQueue().length){
+    if(autoMode==='run'){ autoStop(null); return; }
+    autoStatus('Auto log on · '+autoDone+' logged · waiting for new jobs (checks every '+(parseFloat(settings.agAutoEvery)||3)+' min)');
+    return;
+  }
+  try{ aglWin.postMessage({rl:'agl-wake'}, aglOrigin()); }catch{}
+}
+function autoStop(reason){
+  const was = autoMode; autoMode = 'off'; autoCurrent = null; runIds = null; clearInterval(autoPoll); autoPoll = null;
+  autoStatus(reason ? 'Stopped: '+reason+'. '+autoDone+' logged.' : (was==='run' ? 'Run finished: '+autoDone+' logged'+(autoStopped ? ', '+autoStopped+' left for you to check' : '')+'.' : 'Auto log off.'));
+  renderAutoBtns();
+}
+async function autoStart(mode){
+  if(!dashJobs.length) await loadDashboard();
+  if(!openAgl()) return;
+  autoMode = mode; autoCurrent = null; autoDone = 0; autoStopped = 0; autoSent = 0;
+  runIds = mode==='run' ? waitingJobs().map(j => j.id) : null;
+  if(mode==='run' && !runIds.length){ autoMode = 'off'; renderAutoBtns(); return toast('No jobs are waiting for Agility'); }
+  clearInterval(autoPoll);
+  autoPoll = setInterval(async () => {
+    if(autoMode==='off') return;
+    if(autoCurrent && Date.now() - autoStarted > 8*60000){ autoStatus('No answer from Agility for '+autoCurrent.asset+', skipped it.'); autoCurrent = null; autoStopped++; }
+    if(autoMode==='auto' && !autoCurrent){ await loadDashboard(); }
+    autoWake();
+  }, (autoMode==='auto' ? (parseFloat(settings.agAutoEvery)||3) : 1) * 60000);
+  autoStatus(mode==='run' ? 'Starting: '+runIds.length+' job(s)…' : 'Auto log on · starting…');
+  renderAutoBtns();
+  setTimeout(autoWake, 2500);
+}
+$('autoLogBtn').onclick = () => autoMode==='auto' ? autoStop(null) : autoStart('auto');
+$('runAglBtn').onclick = () => autoMode==='run' ? autoStop('stopped by you') : autoStart('run');
+window.addEventListener('message', async e => {
+  if(e.origin !== aglOrigin() || !e.data || !e.data.rl) return;
+  const d = e.data;
+  if(d.rl==='agl-hello'){
+    if(autoMode==='off') return;
+    if(!autoCurrent){
+      if(autoSent >= autoLimit()){ autoStop('reached the safety limit of '+autoLimit()+' jobs. Press the button again to continue'); return; }
+      await loadDashboard(); // fresh copy: skip anything another PC already sent
+      const j = autoQueue()[0];
+      if(!j){ autoWake(); return; }
+      if(j.agilityAt || j.aglWo){ autoWake(); return; }
+      autoCurrent = j; autoStarted = Date.now();
+      const ok = await updateJob(j, {agilityAt: localInput(new Date()).replace('T',' ')}); renderDash();
+      if(!ok){ autoCurrent = null; autoStop('couldn’t save that '+j.asset+' was sent, so it wasn’t sent (no duplicates)'); return; }
+      autoSent++;
+    }
+    e.source.postMessage({rl:'agl-job', text:agilityPayload(autoCurrent), id:autoCurrent.id, asset:autoCurrent.asset, url:settings.agAutoUrl || DEFAULT_SETTINGS.agAutoUrl, add:settings.agAddLabel || DEFAULT_SETTINGS.agAddLabel}, e.origin);
+    autoStatus('Logging '+autoCurrent.asset+' in Agility…'+(autoMode==='run' ? ' ('+(autoDone+autoStopped+1)+' of '+runIds.length+')' : ''));
+  }
+  if(d.rl==='agl-wo'){
+    const j = await applyAglWo(d, false);
+    if(autoCurrent && (autoCurrent.id===d.id || autoCurrent.asset===d.asset)){ autoCurrent = null; autoDone++; autoStatus((d.asset||'')+': AGL WO# '+d.wo+' saved. '+(autoQueue().length ? 'Next job…' : '')); }
+    renderAutoBtns(); setTimeout(autoWake, 3000);
+  }
+  if(d.rl==='agl-stopped'){
+    toast('Auto AGL stopped for '+(d.asset||'a job')+': '+(d.reason||'')+'. Left for you to check.');
+    if(autoCurrent && (autoCurrent.id===d.id || autoCurrent.asset===d.asset)){ autoCurrent = null; autoStopped++; }
+    renderAutoBtns(); setTimeout(autoWake, 3000);
+  }
+});
 window.addEventListener('message', e => {
   if(!e.data || !e.data.rl || !isSnOrigin(e.origin)) return;
   if(e.data.rl==='hello' && (!e.data.v || e.data.v < FILL_LATEST)) toast('Your ⚡ Fill EAM bookmark is out of date. Settings › Fill EAM › Make the bookmark, then replace it.');
+  if(e.data.rl==='hello' && eamAuto && e.data.worker && e.source && (!snWin || e.source===snWin)){ eamHello(e); return; }
   if(e.data.rl==='hello' && pendingSn && e.source) e.source.postMessage({rl:'job', text:pendingSn}, e.origin);
-  if(e.data.rl==='eam') applyEam(e.data);
+  if(e.data.rl==='eam-stopped'){ toast('Auto EAM skipped '+(e.data.asset||'a job')+': '+(e.data.reason||'')); if(eamCurrent && (eamCurrent.id===e.data.id || eamCurrent.asset===e.data.asset)) eamCurrent = null; setTimeout(eamWake, 3000); }
+  if(e.data.rl==='eam'){ applyEam(e.data); if(eamCurrent && (eamCurrent.id===e.data.id || eamCurrent.asset===e.data.asset)){ eamCurrent = null; eamStatus((e.data.asset||'')+' → '+(e.data.wo||'')+' created. '+(eamQueue().length ? 'Next…' : '')); } }
 });
 let woChecking = false;
 // Reads the clipboard for a WO# copied by Fill AGL (or a ServiceNow number from Fill EAM) and saves it on the job.
 // Runs when you come back to Repair Logger, after the Dashboard loads, and when you press 📋 Paste WO#.
+async function applyAglWo(d, manual){
+  if(!dashJobs.length) await loadDashboard();
+  const byAsset = arr => arr.filter(x => x.asset===d.asset && !x.aglWo && x.status!=='completed').sort((a,b) => String(b.id).localeCompare(String(a.id)))[0];
+  const j = dashJobs.find(x => x.id===d.id) || logs.find(x => x.id===d.id) || byAsset(dashJobs) || byAsset(logs);
+  if(!j){ toast('AGL WO# '+d.wo+' for '+d.asset+' received, but no open job for that asset was found. Use ✎ Edit to add it.'); return null; }
+  if(j.aglWo===String(d.wo)){ if(manual) toast(j.asset+' already has AGL WO# '+d.wo); return j; }
+  const ok = await updateJob(j, {aglWo: String(d.wo), aglAt: localInput(new Date()).replace('T',' ')});
+  if(currentTab==='dash') renderDash();
+  if(ok) toast(`AGL WO# ${d.wo} added to ${j.asset}`);
+  return j;
+}
 async function checkWoClipboard(manual){
   if(woChecking) return;
   if(!manual && (!document.hasFocus() || !navigator.clipboard?.readText)) return;
@@ -1546,15 +1709,8 @@ async function checkWoClipboard(manual){
     if(t.startsWith('REPAIRLOGGER-EAM:')){ const d = JSON.parse(t.slice(17)); await applyEam(d); try{ await navigator.clipboard.writeText(d.wo || ''); }catch{} return; }
     if(!t.startsWith('REPAIRLOGGER-WO:')){ if(manual) toast('No Agility WO# on the clipboard. On the Agility page press “Copy again” in the Fill AGL panel first.'); return; }
     const d = JSON.parse(t.slice(16));
-    if(!dashJobs.length) await loadDashboard();
-    const byAsset = arr => arr.filter(x => x.asset===d.asset && !x.aglWo && x.status!=='completed').sort((a,b) => String(b.id).localeCompare(String(a.id)))[0];
-    const j = dashJobs.find(x => x.id===d.id) || logs.find(x => x.id===d.id) || byAsset(dashJobs) || byAsset(logs);
-    if(!j){ toast('AGL WO# '+d.wo+' for '+d.asset+' copied, but no open job for that asset was found. Use ✎ Edit to add it.'); return; }
-    if(j.aglWo===String(d.wo)){ if(manual) toast(j.asset+' already has AGL WO# '+d.wo); return; }
-    const ok = await updateJob(j, {aglWo: String(d.wo), aglAt: localInput(new Date()).replace('T',' ')});
-    try{ await navigator.clipboard.writeText(String(d.wo)); }catch{}
-    if(currentTab==='dash') renderDash();
-    if(ok) toast(`AGL WO# ${d.wo} added to ${j.asset}`);
+    const j = await applyAglWo(d, manual);
+    if(j) try{ await navigator.clipboard.writeText(String(d.wo)); }catch{}
   }catch(e){ if(manual) toast('Could not add the WO#: '+e.message); }
   finally{ woChecking = false; }
 }
@@ -1786,7 +1942,7 @@ function extensionContentScript(core){
     if (typeof snWatchSubmit === 'function') snWatchSubmit();
     return;
   }
-  if (window.top !== window) return;
+  if (window.top !== window && !/DetailForm/i.test(location.pathname)) return;
   const b = document.createElement('button');
   b.id = 'rl-fill-agl-btn';
   b.textContent = '⚡ Fill AGL';
@@ -1795,6 +1951,8 @@ function extensionContentScript(core){
   b.onclick = () => agilityFiller();
   document.body.appendChild(b);
   if(typeof checkAgilityWo === 'function') setTimeout(checkAgilityWo, 1000);
+  if(typeof autoAgl === 'function') autoAgl();
+  if(typeof aglKeepAlive === 'function') aglKeepAlive();
 })();
 `;
 }
@@ -1895,6 +2053,7 @@ async function checkCore(){
 }
 const dcell = v => { const t = fmt(v); return cell(t, false, t.replace(/^(\S+) /, '$1\n')); };
 async function renderDash(){
+  try{ renderAutoBtns(); }catch{}
   const q = $('dashSearch').value.trim().toLowerCase();
   const open = dashJobs.filter(j=>j.status!=='completed'), done = dashJobs.filter(j=>j.status==='completed');
   $('cntOpen').textContent = '('+open.length+')'; $('cntDone').textContent = '('+done.length+')';
@@ -1912,6 +2071,7 @@ async function renderDash(){
     const woTd = cell(j.aglWo||'');
     if(j.aglWo) woTd.insertAdjacentHTML('beforeend','<span class="stage agl" title="AGL done '+fmt(j.aglAt||'')+'">AGL ✓</span>');
     if(j.eamAt) woTd.insertAdjacentHTML('beforeend','<span class="stage eam" title="EAM done '+fmt(j.eamAt)+'">EAM ✓</span>');
+    if(j.eam && !j.eamAt) woTd.insertAdjacentHTML('beforeend','<span class="stage" style="background:#a78bfa" title="Will be logged in EAM">EAM</span>');
     if(j.eamWo){ const d=document.createElement('div'); d.style.cssText='font-size:12px;margin-top:3px'; d.textContent=j.eamWo; woTd.appendChild(d); }
     tr.append(woTd);
     const tdDone = dcell(j.completedAt); if(dashView!=='completed') tdDone.classList.add('hidden'); tr.append(tdDone);
@@ -1959,7 +2119,7 @@ function bindSettings(){
     r.checked = r.value===settings.mode;
     r.onchange = () => { settings.mode=r.value; saveSettings(); showModeSettings(); };
   });
-  ['defaultRoom','odFolder','odFile','odClient','odTenant','shareFile','ghOwner','ghRepo','ghBranch','ghFolder','appRepo','appBranch','appPath','agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom','agRoomUncheck','agRoomPrefix','agTriage','agAssetTag','agResponse','agReqMinus','agSubmitSecs','agWaitRoom','agWaitDecouple','agWaitEquipment','agWaitDropdown','agWaitMes','agWaitFields','snNewUrl','snAssignee','snAsset','snAssigned','snSummary','snInfo','snAglRef','snWait','snTable','snKeepValues'].forEach(k=>{
+  ['defaultRoom','odFolder','odFile','odClient','odTenant','shareFile','ghOwner','ghRepo','ghBranch','ghFolder','appRepo','appBranch','appPath','agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom','agRoomUncheck','agRoomPrefix','agTriage','agAssetTag','agResponse','agReqMinus','agSubmitSecs','agAutoUrl','agAddLabel','agAutoEvery','agAutoLimit','agWaitRoom','agWaitDecouple','agWaitEquipment','agWaitDropdown','agWaitMes','agWaitFields','snNewUrl','snAssignee','snAsset','snAssigned','snSummary','snInfo','snAglRef','snWait','snTable','snKeepValues'].forEach(k=>{
     $(k).value = settings[k]||'';
     $(k).addEventListener('change', ()=>{ settings[k]=$(k).value.trim(); saveSettings(); renderSaveLoc(); });
   });
