@@ -367,6 +367,27 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
   </div>
 
   <div class="card">
+    <h2>Agility</h2>
+    <div class="hint" style="margin:0 0 10px">Fill the Agility form from a job. On the PC Dashboard press <b>→ Agility</b> on a job, open the Agility form in the same browser, then click the <b>Fill Agility</b> bookmark. It only fills fields; you check the form and press Complete yourself.</div>
+    <div class="field">
+      <label>1. Add the bookmark (once per PC)</label>
+      <div class="row">
+        <a class="btn primary" id="agilityBookmarklet" href="#">⚡ Fill Agility</a>
+        <button class="btn" id="copyBookmarkletBtn" type="button">Copy bookmark code</button>
+      </div>
+      <div class="hint">Drag the <b>⚡ Fill Agility</b> button onto your browser’s bookmarks bar (press Ctrl+Shift+B to show the bar). If dragging is blocked, right-click the bookmarks bar › Add page, name it “Fill Agility”, and paste the copied code as the URL.</div>
+    </div>
+    <label>2. Which Agility field gets what</label>
+    <div class="hint" style="margin:0 0 8px">Type the field name exactly as it appears on the Agility form. Separate several names with commas to fill more than one field. Leave a box empty to skip it.</div>
+    <div class="field"><label for="agAsset" style="font-weight:400">Asset ID →</label><input id="agAsset" placeholder="MES Asset Tag Number, Reported Equipment"></div>
+    <div class="field"><label for="agFault" style="font-weight:400">Fault →</label><input id="agFault" placeholder="Additional Comments"></div>
+    <div class="field"><label for="agResolution" style="font-weight:400">Resolution →</label><input id="agResolution" placeholder="Comments"></div>
+    <div class="field"><label for="agStart" style="font-weight:400">Start time →</label><input id="agStart" placeholder="Response Date/Time"></div>
+    <div class="field"><label for="agEnd" style="font-weight:400">End time →</label><input id="agEnd" placeholder="Completion Date"></div>
+    <button class="btn small" id="agResetBtn" type="button">Reset to defaults</button>
+  </div>
+
+  <div class="card">
     <h2>Other devices</h2>
     <button class="btn" id="setupLinkBtn" type="button">Copy setup link</button>
     <div class="hint">Opens this app on another device with the same settings and tags. The GitHub token and encryption key are <b>not</b> included; add them on that device.</div>
@@ -377,7 +398,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 
 <script>
 (async () => {
-const APP_VERSION = '1.5.1';
+const APP_VERSION = '1.6.0';
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -393,6 +414,8 @@ const DEFAULT_SETTINGS = {
   odClient: '',
   ghOwner: '', ghRepo: 'repair-logs', ghBranch: 'main', ghFolder: '',
   appRepo: 'repair-logger', appBranch: 'main', appPath: 'index.html',
+  agAsset: 'MES Asset Tag Number, Reported Equipment', agFault: 'Additional Comments', agResolution: 'Comments',
+  agStart: 'Response Date/Time', agEnd: 'Completion Date',
   odTenant: 'common',
   shareFile: 'Job_{asset}_{yyyy}-{MM}-{dd}.csv'
 };
@@ -1208,19 +1231,97 @@ async function photoCell(j){
   }
   td.appendChild(w); return td;
 }
-async function setStatus(j, status){
-  const prev = {status:j.status, completedAt:j.completedAt};
-  j.status = status; j.completedAt = status==='completed' ? localInput(new Date()).replace('T',' ') : null;
+// Change some fields on a job and save it everywhere it lives; rolls back if the save fails
+async function updateJob(j, changes){
+  const prev = Object.fromEntries(Object.keys(changes).map(k=>[k, j[k]]));
+  Object.assign(j, changes);
   const local = logs.find(l=>l.id===j.id);
-  if(local && local!==j){ local.status=j.status; local.completedAt=j.completedAt; }
+  if(local && local!==j) Object.assign(local, changes);
   saveLogs();
   if(dashSourceOD || dashSourceFS || dashSourceGH){
     try{ await (dashSourceGH ? ghBackend : dashSourceFS ? fsBackend : odBackend).put('jobs/'+j.id+'.json', JSON.stringify(publicJob(j), null, 1), 'application/json'); }
-    catch(e){ Object.assign(j, prev); if(local) Object.assign(local, prev); saveLogs(); toast('Could not update: '+e.message); }
+    catch(e){ Object.assign(j, prev); if(local) Object.assign(local, prev); saveLogs(); toast('Could not update: '+e.message); return false; }
   }
-  renderDash();
-  toast(status==='completed' ? `${j.asset} moved to Completed` : `${j.asset} reopened`);
+  return true;
 }
+async function setStatus(j, status){
+  const ok = await updateJob(j, {status, completedAt: status==='completed' ? localInput(new Date()).replace('T',' ') : null});
+  renderDash();
+  if(ok) toast(status==='completed' ? `${j.asset} moved to Completed` : `${j.asset} reopened`);
+}
+
+// ---------- Agility ----------
+const labelsOf = k => (settings[k]||'').split(',').map(x=>x.trim()).filter(Boolean);
+function agilityPayload(j){
+  const fields = [];
+  const add = (k, value) => labelsOf(k).forEach(label => fields.push({label, value: value ?? ''}));
+  add('agAsset', j.asset); add('agFault', j.fault); add('agResolution', j.resolution);
+  add('agStart', fmt(j.start)); add('agEnd', fmt(j.end));
+  return 'REPAIRLOGGER:'+JSON.stringify({v:1, asset:j.asset, fields});
+}
+async function sendToAgility(j){
+  const text = agilityPayload(j);
+  try{ await navigator.clipboard.writeText(text); }
+  catch{ const t=document.createElement('textarea'); t.value=text; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
+  toast(`${j.asset} copied. Open the Agility form and click ⚡ Fill Agility.`);
+  if(j.photos?.length && confirm(`Also download ${j.photos.length} photo(s) so you can add them with “Add Attachments” in Agility?`)){
+    for(const name of j.photos){
+      let blob = await idb.get('p:'+name);
+      if(!blob && photoUrlCache[name]) blob = await (await fetch(photoUrlCache[name])).blob();
+      if(!blob && dashSourceFS) blob = await fsBackend.getFile('photos/'+name).catch(()=>null);
+      if(!blob && dashSourceOD && photoInfo[name]) { toast('Open the photo from the table to save it from OneDrive'); continue; }
+      if(blob) download(new File([blob], `${j.asset}_${name.split('_').pop()}`, {type:'image/jpeg'}));
+    }
+  }
+  if(!j.agilityAt){ await updateJob(j, {agilityAt: localInput(new Date()).replace('T',' ')}); renderDash(); }
+}
+// The bookmark that runs on the Agility page. It finds each field by the text label next to it
+// and fills it. It never clicks any buttons.
+function agilityFiller(){
+  (async () => {
+    let t = '';
+    try{ t = await navigator.clipboard.readText(); }catch(e){}
+    if(!t.startsWith('REPAIRLOGGER:')) t = prompt('Paste the job copied from Repair Logger (press → Agility first):') || '';
+    if(!t.startsWith('REPAIRLOGGER:')) return alert('No Repair Logger job found.\n\nIn Repair Logger, press “→ Agility” on a job, then click this bookmark again.');
+    const data = JSON.parse(t.slice(13));
+    const norm = s => (s||'').replace(/[\s ]+/g,' ').replace(/[:*]+\s*$/,'').trim().toLowerCase();
+    const docs = [];
+    (function walk(w){ try{ docs.push(w.document); for(let i=0;i<w.frames.length;i++) walk(w.frames[i]); }catch(e){} })(window);
+    const visible = el => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+    const editable = el => (el.tagName==='TEXTAREA' || /^(text|search|tel|email|)$/i.test(el.getAttribute('type')||'')) && !el.disabled && visible(el);
+    function find(label){
+      const L = norm(label);
+      for(const doc of docs){
+        const labels = [...doc.querySelectorAll('body *')].filter(e => !/^(SCRIPT|STYLE|OPTION|SELECT|TEXTAREA)$/.test(e.tagName) &&
+          norm([...e.childNodes].filter(n=>n.nodeType===3 || n.tagName==='BR').map(n=>n.nodeType===3?n.textContent:' ').join(''))===L);
+        for(const lab of labels){
+          if(lab.htmlFor){ const f = doc.getElementById(lab.htmlFor); if(f && editable(f)) return f; }
+          const fields = [...doc.querySelectorAll('input,textarea')].filter(editable);
+          const next = fields.find(f => lab.compareDocumentPosition(f) & Node.DOCUMENT_POSITION_FOLLOWING);
+          if(next) return next;
+        }
+      }
+      return null;
+    }
+    function setVal(el, v){
+      const proto = el.tagName==='TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      el.focus();
+      Object.getOwnPropertyDescriptor(proto,'value').set.call(el, v);
+      for(const type of ['input','keyup','change']) el.dispatchEvent(new Event(type, {bubbles:true}));
+      el.dispatchEvent(new Event('blur', {bubbles:true})); el.blur();
+      el.style.outline = '3px solid #22c55e';
+    }
+    const done = [], missed = [];
+    for(const f of data.fields){
+      const el = find(f.label);
+      if(el){ setVal(el, f.value); done.push(f.label); } else missed.push(f.label);
+    }
+    alert('Repair Logger: filled '+done.length+' field(s) for '+data.asset+'.'+
+      (missed.length ? '\n\nCould not find: '+missed.join(', ')+'\n(Check the field names in Repair Logger › Settings › Agility.)' : '')+
+      '\n\nFilled fields are outlined in green. Check them, then press Complete yourself.');
+  })();
+}
+const bookmarkletCode = () => 'javascript:'+encodeURIComponent('('+agilityFiller.toString()+')()');
 async function renderDash(){
   const q = $('dashSearch').value.trim().toLowerCase();
   const open = dashJobs.filter(j=>j.status!=='completed'), done = dashJobs.filter(j=>j.status==='completed');
@@ -1242,7 +1343,11 @@ async function renderDash(){
     b.onclick = () => { b.disabled=true; setStatus(j, dashView==='completed' ? 'open' : 'completed'); };
     const cr=document.createElement('button'); cr.type='button'; cr.className='btn small'; cr.textContent='Copy row'; cr.style.marginLeft='6px';
     cr.onclick = () => { copyBtn([j.asset,j.fault,j.resolution,(j.tags||[]).join(' '),fmt(j.start),fmt(j.end),j.durationMin].join('\t')).click(); toast('Row copied'); };
-    act.append(b, cr); tr.append(act);
+    const ag=document.createElement('button'); ag.type='button'; ag.className='btn small'; ag.style.marginLeft='6px';
+    ag.textContent = j.agilityAt ? '✓ Agility' : '→ Agility';
+    ag.title = j.agilityAt ? 'Sent to Agility '+fmt(j.agilityAt)+'. Click to copy again.' : 'Copy this job, then click ⚡ Fill Agility on the Agility form';
+    ag.onclick = () => sendToAgility(j);
+    act.append(b, ag, cr); tr.append(act);
     body.appendChild(tr);
   }
 }
@@ -1265,7 +1370,7 @@ function bindSettings(){
     r.checked = r.value===settings.mode;
     r.onchange = () => { settings.mode=r.value; saveSettings(); showModeSettings(); };
   });
-  ['odFolder','odFile','odClient','odTenant','shareFile','ghOwner','ghRepo','ghBranch','ghFolder','appRepo','appBranch','appPath'].forEach(k=>{
+  ['odFolder','odFile','odClient','odTenant','shareFile','ghOwner','ghRepo','ghBranch','ghFolder','appRepo','appBranch','appPath','agAsset','agFault','agResolution','agStart','agEnd'].forEach(k=>{
     $(k).value = settings[k]||'';
     $(k).addEventListener('change', ()=>{ settings[k]=$(k).value.trim(); saveSettings(); renderSaveLoc(); });
   });
@@ -1276,9 +1381,19 @@ function bindSettings(){
     $('folderModeHint').textContent = 'Not available in this browser (iPhone Safari can’t pick folders). On iPhone use Share sheet → Save to Files. On a PC use Chrome or Edge.'; }
   $('signOutBtn').onclick = () => { store.set('token',null); updateOdStatus(); toast('Signed out'); };
   bindGitHubSettings();
+  const bm = $('agilityBookmarklet');
+  bm.href = bookmarkletCode();
+  bm.onclick = e => { e.preventDefault(); toast('Drag this button to your bookmarks bar. Don’t click it here.'); };
+  $('copyBookmarkletBtn').onclick = async () => {
+    try{ await navigator.clipboard.writeText(bookmarkletCode()); toast('Bookmark code copied'); }catch{ prompt('Copy this bookmark code:', bookmarkletCode()); }
+  };
+  $('agResetBtn').onclick = () => {
+    ['agAsset','agFault','agResolution','agStart','agEnd'].forEach(k=>{ settings[k]=DEFAULT_SETTINGS[k]; $(k).value=settings[k]; });
+    saveSettings(); toast('Agility fields reset');
+  };
   $('setupLinkBtn').onclick = async () => {
-    const {mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath} = settings;
-    const enc = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath})))));
+    const {mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd} = settings;
+    const enc = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify({mode, odFolder, odFile, odClient, odTenant, tags, duration, ghOwner, ghRepo, ghBranch, ghFolder, appRepo, appBranch, appPath, agAsset, agFault, agResolution, agStart, agEnd})))));
     const link = redirectUri+'#cfg='+enc;
     try{ await navigator.clipboard.writeText(link); toast('Setup link copied'); }catch{ prompt('Copy this link:', link); }
   };
