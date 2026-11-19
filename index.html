@@ -554,8 +554,8 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 <script type="text/plain" id="lockedScript"></script>
 <script>
 (async () => {
-const APP_VERSION = '2.22.1';
-const FILL_LATEST = '4.1.0'; // the Fill AGL / Fill EAM script this app expects
+const APP_VERSION = '2.22.2';
+const FILL_LATEST = '4.2.0'; // the Fill AGL / Fill EAM script this app expects
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -1508,12 +1508,13 @@ function editJob(j){
       <div class="field" style="flex:1;min-width:180px"><label>End time</label><input type="datetime-local" data-k="end"></div></div>
     <div class="row"><div class="field" style="flex:1;min-width:160px"><label>AGL WO#</label><input data-k="aglWo" inputmode="numeric" placeholder="e.g. 10545336"></div>
       <div class="field" style="flex:1;min-width:160px"><label>EAM (ServiceNow) WO#</label><input data-k="eamWo" placeholder="e.g. CWKD1096073"></div></div>
+    <label class="radio"><input type="checkbox" data-k="aglSent"><span>Sent to Agility (✓ AGL). Untick so Auto log / Run AGL sends it (only if it isn’t in Agility)</span></label>
     <label class="radio"><input type="checkbox" data-k="eamFlag"><span>Log in EAM (ServiceNow) — Auto EAM picks it up after the AGL WO#</span></label>
     <label class="radio"><input type="checkbox" data-k="eam"><span>EAM done (ServiceNow entered)</span></label>
     <div class="row" style="margin-top:12px;justify-content:flex-end"><button class="btn" data-x type="button">Cancel</button><button class="btn primary" data-save type="button">Save changes</button></div></div>`;
   const q = k => bg.querySelector('[data-k="'+k+'"]');
   ['room','asset','fault','resolution','aglWo','eamWo'].forEach(k => q(k).value = j[k]||'');
-  q('start').value = toInput(j.start); q('end').value = toInput(j.end); q('eam').checked = !!j.eamAt; q('eamFlag').checked = !!j.eam;
+  q('start').value = toInput(j.start); q('end').value = toInput(j.end); q('eam').checked = !!j.eamAt; q('eamFlag').checked = !!j.eam; q('aglSent').checked = !!j.agilityAt;
   bg.querySelector('[data-x]').onclick = () => bg.remove();
   bg.onclick = e => { if(e.target===bg) bg.remove(); };
   bg.querySelector('[data-save]').onclick = async () => {
@@ -1524,7 +1525,7 @@ function editJob(j){
       tags:[...new Set((res.match(/#[\w-]+/g)||[]).map(t=>t.toUpperCase()))],
       start:st.replace('T',' '), end:en.replace('T',' '),
       durationMin:(st && en) ? Math.round((new Date(en)-new Date(st))/60000) : '',
-      aglWo:wo, aglAt: wo ? (j.aglAt || now) : null, eam:q('eamFlag').checked, eamWo:q('eamWo').value.trim(), eamAt: (q('eam').checked || q('eamWo').value.trim()) ? (j.eamAt || now) : null};
+      aglWo:wo, aglAt: wo ? (j.aglAt || now) : null, agilityAt: q('aglSent').checked ? (j.agilityAt || now) : null, eam:q('eamFlag').checked, eamWo:q('eamWo').value.trim(), eamAt: (q('eam').checked || q('eamWo').value.trim()) ? (j.eamAt || now) : null};
     bg.querySelector('[data-save]').disabled = true;
     const ok = await updateJob(j, ch); bg.remove(); renderDash(); if(ok) toast('Job updated');
   };
@@ -1612,12 +1613,18 @@ function openAgl(){
   if(!aglWin){ toast('Edge blocked the Agility tab. Allow pop-ups for Repair Logger (icon in the address bar), then press again.'); return false; }
   return true;
 }
+// jobs already sent to Agility (→ AGL) but without a WO#: skipped so they are never logged twice
+function skippedNote(){
+  const n = dashJobs.filter(j => j.status!=='completed' && !j.aglWo && j.agilityAt).length;
+  return n ? ' '+n+' job(s) marked ✓ AGL (already sent to Agility, no WO# yet) are skipped so they aren’t logged twice. If one isn’t really in Agility, untick “Sent to Agility” in ✎ Edit.' : '';
+}
+let aglAnswered = false, aglVer = '';
 function autoWake(){
   if(autoMode==='off' || autoCurrent) return;
   if(!aglWin || aglWin.closed){ autoStop('the Agility tab was closed'); return; }
   if(!autoQueue().length){
     if(autoMode==='run'){ autoStop(null); return; }
-    autoStatus('Auto log on · '+autoDone+' logged · waiting for new jobs (checks every '+(parseFloat(settings.agAutoEvery)||3)+' min)');
+    autoStatus('Auto log on · '+autoDone+' logged · waiting for new jobs (checks every '+(parseFloat(settings.agAutoEvery)||3)+' min).'+skippedNote());
     return;
   }
   try{ aglWin.postMessage({rl:'agl-wake'}, aglOrigin()); }catch{}
@@ -1629,10 +1636,11 @@ function autoStop(reason){
 }
 async function autoStart(mode){
   if(!dashJobs.length) await loadDashboard();
+  const ids = waitingJobs().map(j => j.id);
+  if(mode==='run' && !ids.length){ renderAutoBtns(); autoStatus('No jobs are waiting for Agility.'+skippedNote()); return; } // nothing to do: don't open Agility
   if(!openAgl()) return;
   autoMode = mode; autoCurrent = null; autoDone = 0; autoStopped = 0; autoSent = 0;
-  runIds = mode==='run' ? waitingJobs().map(j => j.id) : null;
-  if(mode==='run' && !runIds.length){ autoMode = 'off'; renderAutoBtns(); return toast('No jobs are waiting for Agility'); }
+  runIds = mode==='run' ? ids : null;
   clearInterval(autoPoll);
   autoPoll = setInterval(async () => {
     if(autoMode==='off') return;
@@ -1643,6 +1651,11 @@ async function autoStart(mode){
   autoStatus(mode==='run' ? 'Starting: '+runIds.length+' job(s)…' : 'Auto log on · starting…');
   renderAutoBtns();
   setTimeout(autoWake, 2500);
+  aglAnswered = false;
+  setTimeout(() => {
+    if(autoMode!=='off' && !aglAnswered && (!aglWin || !aglWin.closed))
+      autoStatus('The Agility tab isn’t answering. Check: logged in to Agility, and Tampermonkey has Fill AGL '+FILL_LATEST+' (Dashboard › Fill AGL shows the version). Then press the button again.');
+  }, 20000);
 }
 $('autoLogBtn').onclick = () => autoMode==='auto' ? autoStop(null) : autoStart('auto');
 $('runAglBtn').onclick = () => autoMode==='run' ? autoStop('stopped by you') : autoStart('run');
@@ -1650,6 +1663,8 @@ window.addEventListener('message', async e => {
   if(e.origin !== aglOrigin() || !e.data || !e.data.rl) return;
   const d = e.data;
   if(d.rl==='agl-hello'){
+    aglAnswered = true; aglVer = d.v || '';
+    if(!d.v || d.v < FILL_LATEST) toast('The Agility tab has an older Fill AGL script ('+(d.v||'before 4.2')+'). Paste '+FILL_LATEST+' into Tampermonkey.');
     if(autoMode==='off') return;
     if(!autoCurrent){
       if(autoSent >= autoLimit()){ autoStop('reached the safety limit of '+autoLimit()+' jobs. Press the button again to continue'); return; }
