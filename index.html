@@ -368,7 +368,8 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 
   <div class="card">
     <h2>Fill AGL</h2>
-    <div class="hint" style="margin:0 0 10px">Fill the Agility form from a job. On the PC Dashboard press <b>→ AGL</b> on a job, open the Agility form in the same browser, then click the <b>Fill AGL</b> bookmark. It only fills fields; you check the form and press Complete yourself.</div>
+    <div class="hint" style="margin:0 0 10px"><b>On a work PC where bookmarks and developer tools are blocked:</b> press <b>→ AGL</b> on a job in the Dashboard. A helper window opens with each value in Agility’s order: click to copy, paste into Agility, repeat. It can also load everything into Windows clipboard history (Win+V). The field names below set the labels shown in the helper.</div>
+    <div class="hint" style="margin:0 0 10px"><b>Where bookmarks are allowed:</b> fill the Agility form from a job. On the PC Dashboard press <b>→ AGL</b> on a job, open the Agility form in the same browser, then click the <b>Fill AGL</b> bookmark. It only fills fields; you check the form and press Complete yourself.</div>
     <div class="field">
       <label>1. Add the bookmark (once per PC)</label>
       <div class="row">
@@ -407,7 +408,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 
 <script>
 (async () => {
-const APP_VERSION = '1.7.2';
+const APP_VERSION = '1.8.0';
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -1269,11 +1270,108 @@ function agilityPayload(j){
   add('agStart', fmt(j.start), j.start ? j.start.replace(' ','T') : null); add('agEnd', fmt(j.end), j.end ? j.end.replace(' ','T') : null);
   return 'REPAIRLOGGER:'+JSON.stringify({v:1, asset:j.asset, decouple:(settings.agDecouple||'').trim(), fields});
 }
+// AGL helper: a small window beside Agility with each value ready to copy, in form order.
+function aglItems(j){
+  const first = k => labelsOf(k)[0] || '';
+  const others = k => labelsOf(k).slice(1).join(' / ');
+  return [
+    {label:first('agAsset')||'Equipment', also:others('agAsset'), value:j.asset||''},
+    {label:first('agFault')||'Additional Comments', also:others('agFault'), value:j.fault||''},
+    {label:first('agStart')||'Response Date/Time', also:others('agStart'), value:fmt(j.start), note:'only on some forms'},
+    {label:first('agEnd')||'Completion Date', also:others('agEnd'), value:fmt(j.end)},
+    {label:first('agResolution')||'Comments', also:others('agResolution'), value:j.resolution||''},
+  ].filter(i => i.value);
+}
+function aglHelperHtml(j){
+  const data = JSON.stringify({asset:j.asset, decouple:(settings.agDecouple||'').trim(), items:aglItems(j), payload:agilityPayload(j)}).replace(/</g,'\\u003c');
+  return `<!doctype html><html><head><meta charset="utf-8"><title>AGL · ${j.asset.replace(/[<&]/g,'')}</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--text:#16181d;--muted:#6b7280;--line:#e2e5ea;--accent:#0a66d8;--ok:#15803d}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#181b21;--text:#eceef2;--muted:#9aa1ad;--line:#2a2f38;--accent:#3b8cff;--ok:#4ade80}}
+*{box-sizing:border-box}body{margin:0;padding:12px;background:var(--bg);color:var(--text);font:14px/1.4 "Segoe UI",system-ui,sans-serif}
+h1{font-size:16px;margin:0 0 2px}.sub{color:var(--muted);font-size:12px;margin-bottom:10px}
+.step{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 10px;margin-bottom:8px;cursor:pointer;display:flex;gap:10px;align-items:flex-start}
+.step.cur{border:2px solid var(--accent);padding:8px 9px}.step.done{opacity:.6}
+.num{flex:none;width:24px;height:24px;border-radius:50%;background:var(--line);display:grid;place-items:center;font-size:12px;font-weight:700}
+.cur .num{background:var(--accent);color:#fff}.done .num{background:var(--ok);color:#fff}
+.main{flex:1;min-width:0}.lab{font-weight:700}.also{color:var(--muted);font-size:11px}
+.val{white-space:pre-wrap;word-break:break-word;font-size:13px;margin-top:3px;max-height:4.2em;overflow:hidden}
+.cp{flex:none;border:1px solid var(--accent);background:var(--card);color:var(--accent);border-radius:7px;padding:5px 10px;font:inherit;font-size:13px;cursor:pointer}
+.done .cp{border-color:var(--ok);color:var(--ok)}
+.tip{background:#fff7e6;color:#7a4b00;border-radius:8px;padding:7px 9px;font-size:12px;margin-bottom:8px}
+@media (prefers-color-scheme:dark){.tip{background:#3a2c10;color:#ffd48a}}
+.big{width:100%;padding:10px;border-radius:9px;border:1px solid var(--accent);background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer;margin-top:4px}
+.status{font-size:12px;color:var(--muted);margin-top:6px;min-height:1.4em}
+a{color:var(--accent);font-size:12px}
+</style></head><body>
+<h1 id="t"></h1><div class="sub">Click a step to copy it, then paste into Agility (Ctrl+V). The next step is highlighted.</div>
+<div id="dec" class="tip" hidden></div>
+<div id="list"></div>
+<button class="big" id="hist">Load all into Win+V clipboard history</button>
+<div class="status" id="st"></div>
+<div style="margin-top:8px"><a href="#" id="pl">Copy job for the ⚡ Fill AGL bookmark</a> <span style="color:var(--muted);font-size:12px">(only if bookmarks work on this PC)</span></div>
+<script>
+const D = ${data};
+let cur = 0; const done = new Set();
+document.getElementById('t').textContent = 'AGL · ' + D.asset;
+if(D.decouple){ const d=document.getElementById('dec'); d.hidden=false; d.textContent = 'First tick “' + D.decouple + '” in Agility so you can type in the Equipment box.'; }
+async function copy(t){
+  try{ await navigator.clipboard.writeText(t); return true; }
+  catch(e){ const a=document.createElement('textarea'); a.value=t; document.body.appendChild(a); a.select(); const ok=document.execCommand('copy'); a.remove(); return ok; }
+}
+const st = m => document.getElementById('st').textContent = m;
+function render(){
+  const L = document.getElementById('list'); L.innerHTML = '';
+  D.items.forEach((it,i) => {
+    const el = document.createElement('div'); el.className = 'step' + (i===cur?' cur':'') + (done.has(i)?' done':'');
+    el.innerHTML = '<div class="num"></div><div class="main"><div class="lab"></div><div class="also"></div><div class="val"></div></div><button class="cp"></button>';
+    el.querySelector('.num').textContent = done.has(i) ? '✓' : i+1;
+    el.querySelector('.lab').textContent = it.label;
+    el.querySelector('.also').textContent = [it.also ? 'or ' + it.also : '', it.note||''].filter(Boolean).join(' · ');
+    el.querySelector('.val').textContent = it.value;
+    el.querySelector('.cp').textContent = done.has(i) ? 'Copied' : 'Copy';
+    el.onclick = async () => {
+      if(await copy(it.value)){ done.add(i); st('Copied ' + it.label + '. Paste it in Agility with Ctrl+V.'); }
+      else st('Could not copy. Select the text and press Ctrl+C.');
+      cur = Math.min(i+1, D.items.length-1); render();
+    };
+    L.appendChild(el);
+  });
+}
+render();
+document.addEventListener('keydown', e => { if(e.key==='Enter' || e.key===' '){ e.preventDefault(); document.querySelectorAll('.step')[cur]?.click(); } });
+document.getElementById('hist').onclick = async () => {
+  const b = document.getElementById('hist'); b.disabled = true;
+  // copy last-to-first so Win+V lists them in form order (newest at the top)
+  for(let i=D.items.length-1; i>=0; i--){
+    st('Loading ' + (D.items.length-i) + ' of ' + D.items.length + '… keep this window open');
+    await copy(D.items[i].value);
+    await new Promise(r => setTimeout(r, 900));
+  }
+  b.disabled = false;
+  st('Done. In Agility click a field and press Win+V, then pick its value. Empty list? Press Win+V once and click "Turn on" (Windows clipboard history), then try again.');
+};
+document.getElementById('pl').onclick = async e => { e.preventDefault(); await copy(D.payload); st('Copied for the Fill AGL bookmark.'); };
+<\/script></body></html>`;
+}
+function openAglHelper(j){
+  const html = aglHelperHtml(j);
+  const w = window.open('', 'agl-helper', 'width=420,height=680,left='+Math.max(0, screen.availWidth-440)+',top=40');
+  if(w){ w.document.open(); w.document.write(html); w.document.close(); w.focus(); return; }
+  // Popup blocked: show it inside this page instead
+  document.getElementById('aglOverlay')?.remove();
+  const o = document.createElement('div'); o.id = 'aglOverlay';
+  o.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;display:flex;justify-content:flex-end';
+  const f = document.createElement('iframe'); f.setAttribute('allow','clipboard-write'); f.srcdoc = html;
+  f.style.cssText = 'width:min(440px,100%);height:100%;border:none;background:var(--bg)';
+  const x = document.createElement('button'); x.textContent = '✕ Close'; x.className = 'btn';
+  x.style.cssText = 'position:absolute;top:10px;right:min(450px,calc(100% - 90px))';
+  x.onclick = () => o.remove(); o.onclick = e => { if(e.target===o) o.remove(); };
+  o.append(f, x); document.body.appendChild(o);
+  toast('Allow pop-ups for Repair Logger to get the helper in its own window');
+}
 async function sendToAgility(j){
-  const text = agilityPayload(j);
-  try{ await navigator.clipboard.writeText(text); }
-  catch{ const t=document.createElement('textarea'); t.value=text; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
-  toast(`${j.asset} copied. Open the Agility form and click ⚡ Fill AGL.`);
+  openAglHelper(j);
   if(j.photos?.length && confirm(`Also download ${j.photos.length} photo(s) so you can add them with “Add Attachments” in Agility?`)){
     for(const name of j.photos){
       let blob = await idb.get('p:'+name);
@@ -1454,7 +1552,7 @@ async function renderDash(){
     cr.onclick = () => { copyBtn([j.asset,j.fault,j.resolution,(j.tags||[]).join(' '),fmt(j.start),fmt(j.end),j.durationMin].join('\t')).click(); toast('Row copied'); };
     const ag=document.createElement('button'); ag.type='button'; ag.className='btn small'; ag.style.marginLeft='6px';
     ag.textContent = j.agilityAt ? '✓ AGL' : '→ AGL';
-    ag.title = j.agilityAt ? 'Sent to Agility '+fmt(j.agilityAt)+'. Click to copy again.' : 'Copy this job, then click ⚡ Fill AGL on the Agility form';
+    ag.title = (j.agilityAt ? 'Opened for Agility '+fmt(j.agilityAt)+'. ' : '')+'Open the AGL helper: copy each value into the Agility form';
     ag.onclick = () => sendToAgility(j);
     act.append(b, ag, cr); tr.append(act);
     body.appendChild(tr);
