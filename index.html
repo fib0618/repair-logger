@@ -558,7 +558,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 <script type="text/plain" id="lockedScript"></script>
 <script>
 (async () => {
-const APP_VERSION = '2.25.2';
+const APP_VERSION = '2.25.3';
 const FILL_LATEST = '4.5.0'; // the Fill AGL / Fill EAM script this app expects
 const $ = id => document.getElementById(id);
 const store = {
@@ -2210,6 +2210,7 @@ async function renderDash(){
       if(j.aglWo && !j.eamAt){ const em=document.createElement('button'); em.type='button'; em.className='btn small eam'; em.textContent = j.snAt ? '✓ EAM' : '→ EAM';
         em.title='Copy this job for ⚡ Fill EAM on a new ServiceNow Work Order'; em.onclick = () => sendToEam(j); btns.push(em); }
     }
+    if(j.eamWo){ const oe=document.createElement('a'); oe.className='btn small eam'; oe.style.textAlign='center'; oe.style.textDecoration='none'; oe.href=eamLink(j.eamWo); oe.target='_blank'; oe.rel='noopener'; oe.textContent='Open EAM ↗'; oe.title='Open '+j.eamWo+' in ServiceNow'; btns.push(oe); }
     btns.push(ed, cr);
     actb.append(...btns); tr.append(act);
     ['Room','Asset ID','Fault','Resolution','Tags','Start','End','Mins','Photos','AGL WO#','Completed'].forEach((l,i) => tr.children[i] && tr.children[i].setAttribute('data-label', l));
@@ -2220,6 +2221,7 @@ $('segOpen').onclick = () => { dashView='open'; $('segOpen').classList.add('acti
 $('segDone').onclick = () => { dashView='completed'; $('segDone').classList.add('active'); $('segOpen').classList.remove('active'); renderDash(); };
 $('dashSearch').addEventListener('input', renderDash);
 $('dashRefresh').onclick = loadDashboard;
+setInterval(() => { if(currentTab==='dash' && !document.hidden && !$('editModal') && (settings.mode==='github' || settings.mode==='onedrive' || settings.mode==='folder')) loadDashboard().catch(()=>{}); }, 60000);
 $('dashPasteWo').onclick = () => checkWoClipboard(true);
 $('dashExport').onclick = async () => {
   if(!dashJobs.length) return toast('Nothing to export');
