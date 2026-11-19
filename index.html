@@ -419,12 +419,12 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
       <div class="hint">Ticked before filling so the Equipment box can be typed in. Leave empty to skip.</div>
     </div>
     <label>Which Agility field gets what</label>
-    <div class="hint" style="margin:0 0 8px">Type the field name exactly as it appears on the Agility form. Separate several names with commas to fill more than one field. Leave a box empty to skip it.</div>
+    <div class="hint" style="margin:0 0 8px">Type the field name exactly as it appears on the Agility form. You can also use <code>#</code> plus part of a box’s internal name from the 📋 Log (e.g. <code>#598710</code>). Separate several names with commas to fill more than one field. Leave a box empty to skip it.</div>
     <div class="field"><label for="agAsset" style="font-weight:400">Asset ID →</label><input id="agAsset" placeholder="Equipment, Reported Equipment"></div>
     <div class="field"><label for="agRoom" style="font-weight:400">Room Number →</label><input id="agRoom" placeholder="Room Number"></div>
     <div class="field"><label for="agRoomPrefix" style="font-weight:400">Room search prefix</label><input id="agRoomPrefix" placeholder="%" style="max-width:120px">
       <div class="hint">Typed before the room code (e.g. <code>%B-L10539</code>) so Agility searches; the matching result is then picked from the list.</div></div>
-    <div class="field"><label for="agAssetTag" style="font-weight:400">Asset ID (as text, after the dropdowns) →</label><input id="agAssetTag" placeholder="MES Asset Tag Number"></div>
+    <div class="field"><label for="agAssetTag" style="font-weight:400">Asset ID (as text, after the dropdowns) →</label><input id="agAssetTag" placeholder="MES Asset Tag Number, #598710"></div>
     <div class="field"><label for="agResponse" style="font-weight:400">Response time (start + minutes) →</label>
       <div class="row"><input id="agResponse" placeholder="Response Date/Time"><input id="agResponseMins" type="number" min="0" max="240" placeholder="5" style="max-width:90px;flex:none" title="Minutes after the start time"></div>
       <div class="hint">Minutes after the start time (default 5).</div></div>
@@ -447,7 +447,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 
 <script>
 (async () => {
-const APP_VERSION = '2.8.0';
+const APP_VERSION = '2.8.1';
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -463,7 +463,7 @@ const DEFAULT_SETTINGS = {
   odClient: '',
   ghOwner: '', ghRepo: 'repair-logs', ghBranch: 'main', ghFolder: '',
   appRepo: 'repair-logger', appBranch: 'main', appPath: 'index.html',
-  agAsset: 'Equipment, Reported Equipment', agAssetTag: 'MES Asset Tag Number', agResponse: 'Response Date/Time', agResponseMins: '5', agFault: 'Additional Comments', agResolution: 'Comments',
+  agAsset: 'Equipment, Reported Equipment', agAssetTag: 'MES Asset Tag Number, #598710', agResponse: 'Response Date/Time', agResponseMins: '5', agFault: 'Additional Comments', agResolution: 'Comments',
   agStart: 'Please enter your request details here', agEnd: 'Completion Date', agDecouple: 'Decouple Asset?', agRoom: 'Room Number', agRoomUncheck: 'Use my default room for this request', agRoomPrefix: '%', agHelper: true, agWaitRoom: '2', agWaitDecouple: '2', agWaitEquipment: '3', agWaitDropdown: '2', agWaitFields: '8',
   agTriage: 'Medical Equipment Repair - Portable Equipment\nGeneral equipment\nDevice CAN still be used\nCleaning IS NOT required prior to repair\nNO immediate health and safety risk to patients or property', agDelay: '2',
   odTenant: 'common',
@@ -484,6 +484,7 @@ let settings = Object.assign({}, DEFAULT_SETTINGS, store.get('settings', {}));
 if(settings.agAsset==='MES Asset Tag Number, Reported Equipment') settings.agAsset = DEFAULT_SETTINGS.agAsset;
 if(['Response Date/Time','Please enter your request details here, Response Date/Time'].includes(settings.agStart)) settings.agStart = DEFAULT_SETTINGS.agStart;
 if(settings.agAsset==='Equipment, Reported Equipment, MES Asset Tag Number') settings.agAsset = DEFAULT_SETTINGS.agAsset;
+if(settings.agAssetTag==='MES Asset Tag Number') settings.agAssetTag = DEFAULT_SETTINGS.agAssetTag;
 if(settings.agTriage==='Medical Equipment Repair - Portable Equipment\nGeneral equipment\nDevice CAN still be used') settings.agTriage = DEFAULT_SETTINGS.agTriage;
 let logs = store.get('logs', []);
 logs.forEach(l => { l.status ||= 'open'; l.photos ||= []; });
