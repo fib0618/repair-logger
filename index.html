@@ -7,6 +7,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Repair Logger">
 <title>Repair Logger</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='88'%3E👨‍🔧%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" id="touchIcon">
 <style>
 :root{
   --bg:#f4f5f7; --card:#fff; --text:#16181d; --muted:#6b7280; --line:#e2e5ea;
@@ -106,6 +108,14 @@ td .cell .copy{width:22px;height:22px;font-size:11px}
   td:hover .cell .copy, td .cell .copy:focus, td .cell .copy.ok{opacity:1}
 }
 td.act .actbtns{display:flex;flex-direction:column;gap:5px}
+tbody tr.agl-done{background:rgba(34,197,94,.10)!important;box-shadow:inset 4px 0 0 #22c55e}
+tbody tr.eam-done{background:rgba(139,92,246,.10)!important;box-shadow:inset 4px 0 0 #8b5cf6}
+.stage{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;margin:3px 4px 0 0;color:#fff}
+.stage.agl{background:#16a34a}.stage.eam{background:#7c3aed}
+.btn.eam{border-color:#7c3aed;color:#7c3aed}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:60;display:flex;align-items:flex-start;justify-content:center;padding:24px 16px;overflow:auto}
+.modal{background:var(--card);color:var(--text);border-radius:14px;padding:16px;width:min(560px,100%);box-shadow:0 10px 40px rgba(0,0,0,.35)}
+.modal h2{margin:0 0 12px}
 td.act .actbtns .btn{width:100%;padding:5px 4px;font-size:12px;white-space:normal}
 @media (max-width: 899px){
   thead{display:none}
@@ -125,7 +135,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 </head>
 <body>
 <header>
-  <h1>Repair Logger</h1>
+  <h1>👨‍🔧 Repair Logger</h1>
   <div class="hdr-right">
     <span id="pendingBadge" class="badge pending hidden"></span>
     <button class="gear" id="gearBtn" type="button" aria-label="Settings" title="Settings">
@@ -200,6 +210,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
       <div class="thumbs" id="photoThumbs"></div>
     </div>
     <button class="btn primary block" id="saveBtn" type="button">Save job</button>
+    <button class="btn block" id="clearBtn" type="button" style="margin-top:8px">🧹 Clear form</button>
     <div class="status" id="saveStatus"></div>
     <div class="hint" id="saveLocHint"></div>
   </div>
@@ -231,8 +242,8 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
   <div class="table-wrap">
     <table>
       <thead><tr>
-        <th style="width:10%">Room</th><th style="width:9%">Asset ID</th><th style="width:16%">Fault</th><th style="width:17%">Resolution</th><th style="width:7%">Tags</th>
-        <th style="width:9%">Start</th><th style="width:9%">End</th><th style="width:5%">Mins</th><th style="width:7%">Photos</th><th id="thDone" style="width:9%">Completed</th><th style="width:10%"></th>
+        <th style="width:9%">Room</th><th style="width:9%">Asset ID</th><th style="width:14%">Fault</th><th style="width:15%">Resolution</th><th style="width:6%">Tags</th>
+        <th style="width:9%">Start</th><th style="width:9%">End</th><th style="width:5%">Mins</th><th style="width:6%">Photos</th><th style="width:9%">AGL WO#</th><th id="thDone" style="width:9%">Completed</th><th style="width:10%"></th>
       </tr></thead>
       <tbody id="dashBody"></tbody>
     </table>
@@ -406,7 +417,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
     <h2>Fill AGL</h2>
     <div class="hint" style="margin:0 0 10px">Press <b>→ AGL</b> on a job in the Dashboard. It copies the job and opens a helper window with each value in Agility’s order (click to copy, or load all into Win+V). With the Fill AGL extension installed in Edge, just click <b>⚡ Fill AGL</b> on the Agility form instead.</div>
     <label class="radio" style="margin:0 0 10px"><input type="checkbox" id="agAutoComplete">
-      <span><b>Mark the job Completed when I press → AGL</b><br><span class="hint">Moves it to the Completed section straight away. Use ↩ Reopen there to undo.</span></span></label>
+      <span><b>Mark the job Completed when I press → AGL</b><br><span class="hint">Usually off: jobs go AGL done (green, WO# captured) → EAM done (purple) → Completed.</span></span></label>
     <label class="radio" style="margin:0 0 14px"><input type="checkbox" id="agHelper">
       <span><b>Open the copy helper window when I press → AGL</b><br><span class="hint">Turn off if you use the ⚡ Fill AGL button and don’t need the copy-paste window. → AGL still copies the job.</span></span></label>
     <div class="field">
@@ -476,7 +487,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 
 <script>
 (async () => {
-const APP_VERSION = '2.10.0';
+const APP_VERSION = '2.11.0';
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -494,7 +505,7 @@ const DEFAULT_SETTINGS = {
   ghOwner: '', ghRepo: 'repair-logs', ghBranch: 'main', ghFolder: '',
   appRepo: 'repair-logger', appBranch: 'main', appPath: 'index.html',
   agAsset: 'Equipment, Reported Equipment', agAssetTag: 'MES Asset Tag Number, #598710, >Additional Comments', agResponse: 'Response Date/Time', agResponseMins: '5', agFault: 'Additional Comments', agResolution: 'Comments',
-  agStart: 'Please enter your request details here', agEnd: 'Completion Date', agDecouple: 'Decouple Asset?', agRoom: 'Room Number', agRoomUncheck: 'Use my default room for this request', agRoomPrefix: '%', agHelper: true, agAutoComplete: true, agWaitRoom: '2', agWaitDecouple: '2', agWaitEquipment: '3', agWaitDropdown: '2', agWaitMes: '5', agWaitFields: '8',
+  agStart: 'Please enter your request details here', agEnd: 'Completion Date', agDecouple: 'Decouple Asset?', agRoom: 'Room Number', agRoomUncheck: 'Use my default room for this request', agRoomPrefix: '%', agHelper: true, agAutoComplete: false, agWaitRoom: '2', agWaitDecouple: '2', agWaitEquipment: '3', agWaitDropdown: '2', agWaitMes: '5', agWaitFields: '8',
   agTriage: 'Medical Equipment Repair - Portable Equipment\nGeneral equipment\nDevice CAN still be used\nCleaning IS NOT required prior to repair\nNO immediate health and safety risk to patients or property', agDelay: '2',
   odTenant: 'common',
   shareFile: 'Job_{asset}_{yyyy}-{MM}-{dd}.csv'
@@ -511,6 +522,7 @@ const DEFAULT_SETTINGS = {
   history.replaceState(null,'',location.pathname+location.search);
 })();
 let settings = Object.assign({}, DEFAULT_SETTINGS, store.get('settings', {}));
+if(!settings.wfV2){ settings.agAutoComplete = false; settings.wfV2 = true; store.set('settings', settings); } // now: AGL done → EAM done → Completed
 if(settings.agAsset==='MES Asset Tag Number, Reported Equipment') settings.agAsset = DEFAULT_SETTINGS.agAsset;
 if(['Response Date/Time','Please enter your request details here, Response Date/Time'].includes(settings.agStart)) settings.agStart = DEFAULT_SETTINGS.agStart;
 if(settings.agAsset==='Equipment, Reported Equipment, MES Asset Tag Number') settings.agAsset = DEFAULT_SETTINGS.agAsset;
@@ -774,9 +786,9 @@ $('pickPhotoBtn').onclick = () => $('photoPick').click();
 ['photoCam','photoPick'].forEach(id => $(id).addEventListener('change', e => { addPhotos([...e.target.files]); e.target.value=''; }));
 
 // ---------- CSV ----------
-const HEADERS = ['Logged At','Room Number','Asset ID','Fault','Resolution','Tags','Start Time','End Time','Duration (min)','Photos','Job ID'];
+const HEADERS = ['Logged At','Room Number','Asset ID','Fault','Resolution','Tags','Start Time','End Time','Duration (min)','Photos','Job ID','AGL WO#','EAM Done'];
 const esc = v => { v = String(v??''); return /[",\n\r]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
-const row = j => [fmt(j.loggedAt), j.room||'', j.asset, j.fault, j.resolution, (j.tags||[]).join(' '), fmt(j.start), fmt(j.end), j.durationMin??'', (j.photos||[]).length, j.id].map(esc).join(',');
+const row = j => [fmt(j.loggedAt), j.room||'', j.asset, j.fault, j.resolution, (j.tags||[]).join(' '), fmt(j.start), fmt(j.end), j.durationMin??'', (j.photos||[]).length, j.id, j.aglWo||'', fmt(j.eamAt)].map(esc).join(',');
 const csvOf = jobs => HEADERS.join(',')+'\r\n'+jobs.map(row).join('\r\n')+'\r\n';
 const publicJob = j => { const {synced, done, ...rest} = j; return rest; };
 
@@ -1135,6 +1147,16 @@ $('saveBtn').onclick = async () => {
   setEndNow(); renderTagChips();
 };
 
+$('clearBtn').onclick = () => {
+  const hasData = ['room','asset','fault','resolution'].some(f=>$(f).value.trim()) || draftPhotos.length;
+  if(hasData && !confirm('Clear the form? Nothing is saved.')) return;
+  stopScan();
+  ['room','asset','fault','resolution'].forEach(f=>$(f).value='');
+  draftPhotos.forEach(p=>URL.revokeObjectURL(p.url)); draftPhotos=[]; renderThumbs();
+  $('saveStatus').textContent=''; scanMsg(''); setEndNow(); renderTagChips();
+  toast('Form cleared');
+};
+
 // ---------- History (this device) ----------
 function renderPending(){
   const n = logs.filter(l=>!l.synced).length, b=$('pendingBadge');
@@ -1337,6 +1359,68 @@ async function updateJob(j, changes){
   }
   return true;
 }
+async function markEam(j){
+  const now = localInput(new Date()).replace('T',' ');
+  const ok = await updateJob(j, {eamAt: now, status: 'completed', completedAt: now});
+  renderDash(); if(ok) toast(`${j.asset}: EAM done, moved to Completed`);
+}
+function editJob(j){
+  document.getElementById('editModal')?.remove();
+  const bg = document.createElement('div'); bg.className='modal-bg'; bg.id='editModal';
+  const toInput = v => (v||'').replace(' ','T').slice(0,16);
+  bg.innerHTML = `<div class="modal"><h2>Edit job</h2>
+    <div class="field"><label>Room Number</label><input data-k="room"></div>
+    <div class="field"><label>Asset ID</label><input data-k="asset"></div>
+    <div class="field"><label>Fault</label><textarea data-k="fault"></textarea></div>
+    <div class="field"><label>Resolution</label><textarea data-k="resolution"></textarea></div>
+    <div class="row"><div class="field" style="flex:1;min-width:180px"><label>Start time</label><input type="datetime-local" data-k="start"></div>
+      <div class="field" style="flex:1;min-width:180px"><label>End time</label><input type="datetime-local" data-k="end"></div></div>
+    <div class="field"><label>AGL WO#</label><input data-k="aglWo" inputmode="numeric" placeholder="e.g. 10545336"></div>
+    <label class="radio"><input type="checkbox" data-k="eam"><span>EAM done (ServiceNow entered)</span></label>
+    <div class="row" style="margin-top:12px;justify-content:flex-end"><button class="btn" data-x type="button">Cancel</button><button class="btn primary" data-save type="button">Save changes</button></div></div>`;
+  const q = k => bg.querySelector('[data-k="'+k+'"]');
+  ['room','asset','fault','resolution','aglWo'].forEach(k => q(k).value = j[k]||'');
+  q('start').value = toInput(j.start); q('end').value = toInput(j.end); q('eam').checked = !!j.eamAt;
+  bg.querySelector('[data-x]').onclick = () => bg.remove();
+  bg.onclick = e => { if(e.target===bg) bg.remove(); };
+  bg.querySelector('[data-save]').onclick = async () => {
+    const res = q('resolution').value.trim(), st = q('start').value, en = q('end').value, wo = q('aglWo').value.trim();
+    if(!q('asset').value.trim()) return toast('Asset ID is required');
+    const now = localInput(new Date()).replace('T',' ');
+    const ch = {room:q('room').value.trim(), asset:q('asset').value.trim(), fault:q('fault').value.trim(), resolution:res,
+      tags:[...new Set((res.match(/#[\w-]+/g)||[]).map(t=>t.toUpperCase()))],
+      start:st.replace('T',' '), end:en.replace('T',' '),
+      durationMin:(st && en) ? Math.round((new Date(en)-new Date(st))/60000) : '',
+      aglWo:wo, aglAt: wo ? (j.aglAt || now) : null, eamAt: q('eam').checked ? (j.eamAt || now) : null};
+    bg.querySelector('[data-save]').disabled = true;
+    const ok = await updateJob(j, ch); bg.remove(); renderDash(); if(ok) toast('Job updated');
+  };
+  document.body.appendChild(bg); q('room').focus();
+}
+// AGL WO#: after the Agility form is completed, the Fill AGL script copies "REPAIRLOGGER-WO:{...}".
+// When you come back to Repair Logger, it is picked up and saved on the matching job.
+let woChecking = false;
+async function checkWoClipboard(){
+  if(woChecking || !document.hasFocus() || !navigator.clipboard?.readText) return;
+  const waiting = [...logs, ...dashJobs].some(j => j.agilityAt && !j.aglWo);
+  if(!waiting) return;
+  woChecking = true;
+  try{
+    const t = (await navigator.clipboard.readText()).trim();
+    if(!t.startsWith('REPAIRLOGGER-WO:')) return;
+    const d = JSON.parse(t.slice(16));
+    if(!dashJobs.length) await loadDashboard();
+    const j = dashJobs.find(x => x.id===d.id) || logs.find(x => x.id===d.id)
+           || dashJobs.find(x => x.asset===d.asset && x.agilityAt && !x.aglWo);
+    if(!j){ toast('AGL WO# '+d.wo+' copied, but its job wasn’t found'); return; }
+    const ok = await updateJob(j, {aglWo: String(d.wo), aglAt: localInput(new Date()).replace('T',' ')});
+    try{ await navigator.clipboard.writeText(String(d.wo)); }catch{}
+    if(currentTab==='dash') renderDash();
+    if(ok) toast(`AGL WO# ${d.wo} added to ${j.asset}`);
+  }catch(e){} finally{ woChecking = false; }
+}
+window.addEventListener('focus', () => setTimeout(checkWoClipboard, 300));
+document.addEventListener('visibilitychange', () => { if(!document.hidden) setTimeout(checkWoClipboard, 300); });
 async function setStatus(j, status){
   const ok = await updateJob(j, {status, completedAt: status==='completed' ? localInput(new Date()).replace('T',' ') : null});
   renderDash();
@@ -1363,7 +1447,7 @@ function agilityPayload(j){
   add('agFault', j.fault); add('agAssetTag', j.asset);
   add('agResponse', resp ? fmt(resp) : '', resp ? resp.replace(' ','T') : null);
   add('agEnd', fmt(j.end), j.end ? j.end.replace(' ','T') : null); add('agResolution', j.resolution);
-  return 'REPAIRLOGGER:'+JSON.stringify({v:1, asset:j.asset, decouple:(settings.agDecouple||'').trim(), uncheck:(settings.agRoomUncheck||'').trim(), triage:(settings.agTriage||'').split('\n').map(x=>x.trim()).filter(Boolean), delay:Math.round((parseFloat(settings.agDelay)||2)*1000), waits:aglWaits(), fields});
+  return 'REPAIRLOGGER:'+JSON.stringify({v:1, id:j.id, asset:j.asset, decouple:(settings.agDecouple||'').trim(), uncheck:(settings.agRoomUncheck||'').trim(), triage:(settings.agTriage||'').split('\n').map(x=>x.trim()).filter(Boolean), delay:Math.round((parseFloat(settings.agDelay)||2)*1000), waits:aglWaits(), fields});
 }
 // AGL helper: a small window beside Agility with each value ready to copy, in form order.
 function aglItems(j){
@@ -1516,7 +1600,7 @@ async function sendToAgility(j){
   const now = localInput(new Date()).replace('T',' ');
   const changes = {};
   if(!j.agilityAt) changes.agilityAt = now;
-  if(settings.agAutoComplete !== false && j.status !== 'completed'){ changes.status = 'completed'; changes.completedAt = now; }
+  if(settings.agAutoComplete === true && j.status !== 'completed'){ changes.status = 'completed'; changes.completedAt = now; }
   if(Object.keys(changes).length){
     const ok = await updateJob(j, changes); renderDash();
     if(ok && changes.status) toast(`${j.asset} moved to Completed (↩ Reopen there to undo)`);
@@ -1547,6 +1631,7 @@ function extensionContentScript(core){
   b.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:2147483646;padding:10px 16px;border:none;border-radius:999px;background:#0a66d8;color:#fff;font:600 14px Segoe UI,Arial,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.3);cursor:pointer';
   b.onclick = () => agilityFiller();
   document.body.appendChild(b);
+  if(typeof checkAgilityWo === 'function') setTimeout(checkAgilityWo, 1000);
 })();
 `;
 }
@@ -1604,27 +1689,40 @@ async function renderDash(){
   $('cntOpen').textContent = '('+open.length+')'; $('cntDone').textContent = '('+done.length+')';
   $('thDone').classList.toggle('hidden', dashView!=='completed');
   let rows = dashView==='completed' ? done : open;
-  if(q) rows = rows.filter(j=>[j.room,j.asset,j.fault,j.resolution,(j.tags||[]).join(' ')].join(' ').toLowerCase().includes(q));
+  if(q) rows = rows.filter(j=>[j.room,j.asset,j.fault,j.resolution,(j.tags||[]).join(' '),j.aglWo].join(' ').toLowerCase().includes(q));
   const body=$('dashBody'); body.innerHTML='';
-  if(!rows.length){ body.innerHTML=`<tr><td colspan="11" class="empty">${q?'No matches.':dashView==='completed'?'No completed jobs yet.':'No open jobs.'}</td></tr>`; return; }
+  if(!rows.length){ body.innerHTML=`<tr><td colspan="12" class="empty">${q?'No matches.':dashView==='completed'?'No completed jobs yet.':'No open jobs.'}</td></tr>`; return; }
   for(const j of rows){
     const tr=document.createElement('tr');
+    if(j.eamAt) tr.classList.add('eam-done'); else if(j.aglWo) tr.classList.add('agl-done');
     tr.append(cell(j.room||''), cell(j.asset), cell(j.fault,true), cell(j.resolution,true), cell((j.tags||[]).join(' ')),
       dcell(j.start), dcell(j.end), cell(j.durationMin));
     tr.append(await photoCell(j));
+    const woTd = cell(j.aglWo||'');
+    if(j.aglWo) woTd.insertAdjacentHTML('beforeend','<span class="stage agl" title="AGL done '+fmt(j.aglAt||'')+'">AGL ✓</span>');
+    if(j.eamAt) woTd.insertAdjacentHTML('beforeend','<span class="stage eam" title="EAM done '+fmt(j.eamAt)+'">EAM ✓</span>');
+    tr.append(woTd);
     const tdDone = dcell(j.completedAt); if(dashView!=='completed') tdDone.classList.add('hidden'); tr.append(tdDone);
     const act=document.createElement('td'); act.className='act'; const actb=document.createElement('div'); actb.className='actbtns'; act.appendChild(actb);
     const b=document.createElement('button'); b.type='button'; b.className='btn small'+(dashView==='completed'?'':' primary');
     b.textContent = dashView==='completed' ? '↩ Reopen' : '✓ Complete';
     b.onclick = () => { b.disabled=true; setStatus(j, dashView==='completed' ? 'open' : 'completed'); };
     const cr=document.createElement('button'); cr.type='button'; cr.className='btn small'; cr.textContent='Copy row';
-    cr.onclick = () => { copyBtn([j.room||'',j.asset,j.fault,j.resolution,(j.tags||[]).join(' '),fmt(j.start),fmt(j.end),j.durationMin].join('\t')).click(); toast('Row copied'); };
+    cr.onclick = () => { copyBtn([j.room||'',j.asset,j.fault,j.resolution,(j.tags||[]).join(' '),fmt(j.start),fmt(j.end),j.durationMin,j.aglWo||''].join('\t')).click(); toast('Row copied'); };
     const ag=document.createElement('button'); ag.type='button'; ag.className='btn small';
     ag.textContent = j.agilityAt ? '✓ AGL' : '→ AGL';
     ag.title = (j.agilityAt ? 'Opened for Agility '+fmt(j.agilityAt)+'. ' : '')+'Open the AGL helper: copy each value into the Agility form';
     ag.onclick = () => sendToAgility(j);
-    actb.append(b, ag, cr); tr.append(act);
-    ['Room','Asset ID','Fault','Resolution','Tags','Start','End','Mins','Photos','Completed'].forEach((l,i) => tr.children[i] && tr.children[i].setAttribute('data-label', l));
+    const ed=document.createElement('button'); ed.type='button'; ed.className='btn small'; ed.textContent='✎ Edit'; ed.onclick = () => editJob(j);
+    const btns = [b];
+    if(dashView!=='completed'){
+      btns.push(ag);
+      if(j.aglWo && !j.eamAt){ const em=document.createElement('button'); em.type='button'; em.className='btn small eam'; em.textContent='EAM done';
+        em.title='ServiceNow / EAM entry done: marks EAM ✓ and moves the job to Completed'; em.onclick = () => { em.disabled=true; markEam(j); }; btns.push(em); }
+    }
+    btns.push(ed, cr);
+    actb.append(...btns); tr.append(act);
+    ['Room','Asset ID','Fault','Resolution','Tags','Start','End','Mins','Photos','AGL WO#','Completed'].forEach((l,i) => tr.children[i] && tr.children[i].setAttribute('data-label', l));
     body.appendChild(tr);
   }
 }
@@ -1660,7 +1758,7 @@ function bindSettings(){
   $('signOutBtn').onclick = () => { store.set('token',null); updateOdStatus(); toast('Signed out'); };
   bindGitHubSettings();
   roomPlaceholder(); $('defaultRoom').addEventListener('change', roomPlaceholder);
-  $('agAutoComplete').checked = settings.agAutoComplete !== false;
+  $('agAutoComplete').checked = settings.agAutoComplete === true;
   $('agAutoComplete').onchange = () => { settings.agAutoComplete = $('agAutoComplete').checked; saveSettings(); };
   $('agHelper').checked = settings.agHelper !== false;
   $('agHelper').onchange = () => { settings.agHelper = $('agHelper').checked; saveSettings(); toast(settings.agHelper ? 'Copy helper on' : 'Copy helper off'); };
@@ -1851,6 +1949,13 @@ function showModeSettings(){
   $('shareSettings').classList.toggle('hidden', settings.mode!=='share');
 }
 
+// iPhone home-screen icon: draw the 👨‍🔧 emoji on a tile
+try{
+  const c=document.createElement('canvas'); c.width=c.height=180; const g=c.getContext('2d');
+  g.fillStyle='#0a66d8'; g.fillRect(0,0,180,180);
+  g.font='120px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; g.textAlign='center'; g.textBaseline='middle';
+  g.fillText('👨‍🔧', 90, 100); $('touchIcon').href = c.toDataURL('image/png');
+}catch{}
 // ---------- Init ----------
 await loadKey();
 renderDurChips(); loadDraft(); renderTagChips(); renderTagEditor(); bindSettings(); renderPending();
