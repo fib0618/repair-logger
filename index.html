@@ -558,8 +558,8 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 <script type="text/plain" id="lockedScript"></script>
 <script>
 (async () => {
-const APP_VERSION = '2.25.3';
-const FILL_LATEST = '4.5.0'; // the Fill AGL / Fill EAM script this app expects
+const APP_VERSION = '2.26.1';
+const FILL_LATEST = '4.6.1'; // the Fill AGL / Fill EAM script this app expects
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -1734,7 +1734,7 @@ async function autoStart(mode){
   clearInterval(autoPoll);
   autoPoll = setInterval(async () => {
     if(autoMode==='off') return;
-    if(autoCurrent && Date.now() - autoStarted > 8*60000){ autoStatus('No answer from Agility for '+autoCurrent.asset+', skipped it.'); autoCurrent = null; autoStopped++; }
+    if(autoCurrent && Date.now() - autoStarted > 20*60000){ autoStatus('No answer from Agility for '+autoCurrent.asset+', skipped it.'); autoCurrent = null; autoStopped++; }
     if(autoMode==='auto' && !autoCurrent){ await loadDashboard(); }
     autoWake();
   }, (autoMode==='auto' ? (parseFloat(settings.agAutoEvery)||3) : 1) * 60000);
@@ -1752,7 +1752,10 @@ $('runAglBtn').onclick = () => autoMode==='run' ? autoStop('stopped by you') : a
 window.addEventListener('message', async e => {
   if(e.origin !== aglOrigin() || !e.data || !e.data.rl) return;
   const d = e.data;
-  if(d.rl==='agl-progress'){ aglAnswered = true; autoStatus('Agility: '+d.text); return; }
+  if(d.rl==='agl-progress'){ aglAnswered = true; autoStarted = Date.now(); autoStatus('Agility: '+d.text); return; }
+  if(d.rl==='agl-loggedout'){ aglAnswered = true; autoStarted = Date.now();
+    autoStatus(d.submitted ? 'Agility logged out after Complete was pressed for '+d.asset+'. Log in, then check its WO# in Agility (add it with ✎ Edit if needed).' : 'Agility logged out. Log in again in the Agility tab and '+(d.asset||'the job')+' carries on by itself.');
+    toast('Agility logged you out: log in again in the Agility tab'); return; }
   if(d.rl==='agl-hello'){
     aglAnswered = true; aglVer = d.v || '';
     if(!d.v || d.v < FILL_LATEST) toast('The Agility tab has an older Fill AGL script ('+(d.v||'before 4.2')+'). Paste '+FILL_LATEST+' into Tampermonkey.');
