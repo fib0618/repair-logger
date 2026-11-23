@@ -441,7 +441,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
     </div>
     <input type="file" id="assetFile" accept=".csv,text/csv" class="hidden">
     <div class="status" id="assetStatus"></div>
-    <label class="radio" style="margin:10px 0 0"><input type="checkbox" id="phraseOn"><span><b>Suggest my common sentences under Fault and Resolution</b><br><span class="hint">Learned from your saved jobs for the same model (then from all jobs). Tap one to add it; tap × to stop suggesting it.</span></span></label>
+    <label class="radio" style="margin:10px 0 0"><input type="checkbox" id="phraseOn"><span><b>Suggest my common sentences under Fault and Resolution</b><br><span class="hint">Learned from your saved jobs for the same model only. Tap one to add it; tap × to stop suggesting it.</span></span></label>
   </div>
   <div class="card">
     <h2>Update app</h2>
@@ -587,7 +587,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 <script type="text/plain" id="lockedScript"></script>
 <script>
 (async () => {
-const APP_VERSION = '2.29.0';
+const APP_VERSION = '2.29.1';
 const FILL_LATEST = '4.7.1'; // the Fill AGL / Fill EAM script this app expects
 const $ = id => document.getElementById(id);
 const store = {
@@ -861,8 +861,7 @@ function suggestionsFor(field, model, typed){
   const out = [], seen = new Set();
   const take = (bucket, min, tag) => Object.entries(bucket||{}).filter(([k,e]) => e.n >= min && ok(k,e)).sort((a,b) => b[1].n - a[1].n || (b[1].last > a[1].last ? 1 : -1))
     .forEach(([k,e]) => { if(!seen.has(k) && out.length < 8){ seen.add(k); out.push({k, text:e.text, n:e.n, tag}); } });
-  if(model) take(idx[model.toUpperCase()], 1, 'model');
-  take(idx[''], words.length ? 1 : 2, 'all');
+  if(model) take(idx[model.toUpperCase()], 1, 'model'); // only sentences used for this model
   return out;
 }
 // the line being typed (the last line, or the line with the cursor)
@@ -888,7 +887,7 @@ function renderSuggest(){
     const list = suggestionsFor(field, model, currentLine($(field)).text);
     if(!list.length) continue;
     const h = document.createElement('div'); h.className = 'sh';
-    h.textContent = list.some(x => x.tag==='model') ? 'Often used for '+model+':' : 'Often used:'; c.appendChild(h);
+    h.textContent = 'Used before for '+model+':'; c.appendChild(h);
     for(const p of list){
       const b = document.createElement('div'); b.className = 'sg';
       const t = document.createElement('span'); t.textContent = p.text; t.title = 'Used '+p.n+'×'+(p.tag==='model' ? ' for '+model : '');
