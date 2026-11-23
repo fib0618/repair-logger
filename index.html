@@ -145,6 +145,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 .serial-res button{display:block;width:100%;text-align:left;border:1px solid var(--line,#d0d7de);border-radius:10px;background:var(--card,#fff);color:inherit;font:inherit;padding:8px 10px;cursor:pointer}
 .serial-res button small{display:block;color:var(--muted);font-size:12px}
 .serial-res .none{color:var(--muted);font-size:13px}
+tr.sel td{background:rgba(220,38,38,.08)}
 </style>
 </head>
 <body>
@@ -289,6 +290,12 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
     <button class="btn" id="runAglBtn" type="button" title="Log the jobs waiting now into Agility, then stop">▶ Run AGL</button>
     <button class="btn" id="autoEamBtn" type="button" title="Create ServiceNow Work Orders for EAM jobs once their AGL WO# is in (opens ServiceNow)">🔁 Auto EAM: Off</button>
     <span class="hint" id="autoStatus" style="flex:1;min-width:200px"></span>
+  </div>
+  <div class="dash-bar hidden" id="closedBar">
+    <label style="display:flex;align-items:center;gap:6px;margin:0;font-weight:400"><input type="checkbox" id="selAll"> Select all</label>
+    <button class="btn" id="delSel" type="button" disabled>🗑 Delete selected</button>
+    <button class="btn" id="delAll" type="button">🗑 Delete all closed</button>
+    <span class="hint" id="delStatus"></span>
   </div>
   <div class="hint" id="dashSource" style="margin:-4px 0 10px"></div>
   <div class="table-wrap">
@@ -601,7 +608,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 <script type="text/plain" id="lockedScript"></script>
 <script>
 (async () => {
-const APP_VERSION = '2.30.0';
+const APP_VERSION = '2.31.0';
 const FILL_LATEST = '4.7.1'; // the Fill AGL / Fill EAM script this app expects
 const $ = id => document.getElementById(id);
 const store = {
@@ -840,7 +847,9 @@ function showAssetInfo(){
   const a = assetOf($('asset').value);
   el.innerHTML = '';
   if(a){ const b = document.createElement('b'); b.textContent = '🏷 '+(a.model || '(no model)'); b.style.color = 'var(--text, inherit)'; el.appendChild(b); el.title = [a.vendor, a.desc, a.dept, a.serial && 'S/N '+a.serial].filter(Boolean).join(' · '); }
-  else el.textContent = $('asset').value.trim() && assetDb ? 'Not in the asset list' : '';
+  else if(!$('asset').value.trim()) el.textContent = '';
+  else if(assetDb) el.textContent = 'Not in the asset list';
+  else { el.innerHTML = '⚠ Model unknown: the asset list isn’t loaded on this device. <a href="#">Load it in Settings › Asset list</a>'; el.querySelector('a').onclick = e => { e.preventDefault(); showTab('settings'); $('assetUpBtn').scrollIntoView({block:'center'}); }; }
 }
 
 // ---------- Find an asset by serial number ----------
@@ -1350,7 +1359,11 @@ const fsBackend = {
     try{ return await (await (await fsDir(parts, false)).getFileHandle(file)).getFile(); }
     catch(e){ if(e.name==='NotFoundError') return null; throw e; }
   },
-  async getText(rel){ const f = await this.getFile(rel); return f ? f.text() : null; }
+  async getText(rel){ const f = await this.getFile(rel); return f ? f.text() : null; },
+  async del(rel){
+    const parts = rel.split('/'), file = parts.pop();
+    try{ await (await fsDir(parts, false)).removeEntry(file); }catch(e){ if(e.name!=='NotFoundError') throw e; }
+  }
 };
 const odBackend = {
   name: 'onedrive',
@@ -1360,6 +1373,10 @@ const odBackend = {
     if(g.ok) return g.text();
     if(g.status===404) return null;
     throw new Error('Read failed '+rel+' (HTTP '+g.status+')');
+  },
+  async del(rel){
+    const g = await graph(odPath(rel), {method:'DELETE'});
+    if(!g.ok && g.status!==404) throw new Error('Delete failed '+rel+' (HTTP '+g.status+')');
   }
 };
 // ---------- Encryption (AES-256-GCM, key generated on device) ----------
@@ -1480,6 +1497,17 @@ const ghBackend = {
   async getText(rel){
     const b = await ghGetBytes(settings.ghRepo, ghBranch(), ghPrefix()+await opaqueName(rel));
     return b ? td.decode(await decryptBytes(b)) : null;
+  },
+  async del(rel){
+    const path = ghPrefix()+await opaqueName(rel);
+    for(let attempt=0; attempt<2; attempt++){
+      const m = await ghGetMeta(settings.ghRepo, ghBranch(), path);
+      if(!m) return;
+      const r = await ghApi(`/repos/${encodeURIComponent(settings.ghOwner)}/${encodeURIComponent(settings.ghRepo)}/contents/${encPath(path)}`, {method:'DELETE', body:JSON.stringify({message:'Repair Logger update', sha:m.sha, branch:ghBranch()})});
+      if(r.ok || r.status===404) return;
+      if((r.status===409||r.status===422) && attempt===0) continue;
+      throw await ghFail(r, 'Delete');
+    }
   }
 };
 const ghConfigured = () => !!(ghToken() && settings.ghOwner && settings.ghRepo);
@@ -2490,6 +2518,7 @@ async function renderDash(){
   [['open','cntOpen'],['eam','cntEam'],['ready','cntReady'],['completed','cntDone']].forEach(([v,id]) => $(id).textContent = '('+views[v].length+')');
   document.querySelectorAll('.seg [data-view]').forEach(b => b.classList.toggle('active', b.dataset.view===dashView));
   $('thDone').classList.toggle('hidden', dashView!=='completed');
+  $('closedBar').classList.toggle('hidden', dashView!=='completed'); updateDelUi();
   let rows = views[dashView] || views.open;
   if(q) rows = rows.filter(j=>[j.room,j.asset,j.fault,j.resolution,(j.tags||[]).join(' '),j.aglWo,j.eamWo].join(' ').toLowerCase().includes(q));
   const body=$('dashBody'); body.innerHTML='';
@@ -2522,6 +2551,13 @@ async function renderDash(){
     ag.onclick = () => sendToAgility(j);
     const ed=document.createElement('button'); ed.type='button'; ed.className='btn small'; ed.textContent='✎ Edit'; ed.onclick = () => editJob(j);
     const btns = [b];
+    if(dashView==='completed'){
+      const lab = document.createElement('label'); lab.style.cssText = 'display:flex;align-items:center;gap:6px;margin:0 0 2px;font-weight:400;font-size:13px;cursor:pointer';
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = selected.has(j.id);
+      cb.onchange = () => { cb.checked ? selected.add(j.id) : selected.delete(j.id); tr.classList.toggle('sel', cb.checked); updateDelUi(); };
+      tr.classList.toggle('sel', cb.checked);
+      lab.append(cb, 'Select'); actb.appendChild(lab);
+    }
     if(dashView!=='completed'){
       btns.push(ag);
       if(j.agilityAt && !j.aglWo){ const rs=document.createElement('button'); rs.type='button'; rs.className='btn small'; rs.textContent='↻ Resend'; rs.title='Sent to Agility before but no WO# came back. Lets Auto log / Run AGL send it again.';
@@ -2536,6 +2572,38 @@ async function renderDash(){
     body.appendChild(tr);
   }
 }
+// ---------- Delete closed jobs ----------
+const selected = new Set();
+function updateDelUi(){
+  const closedIds = dashJobs.filter(j=>j.status==='completed').map(j=>j.id);
+  [...selected].forEach(id => { if(!closedIds.includes(id)) selected.delete(id); });
+  $('delSel').disabled = !selected.size; $('delSel').textContent = '🗑 Delete selected'+(selected.size ? ' ('+selected.size+')' : '');
+  $('delAll').disabled = !closedIds.length;
+  $('selAll').checked = closedIds.length > 0 && selected.size === closedIds.length;
+}
+async function deleteJobs(list){
+  if(!list.length) return;
+  const names = list.map(j => j.asset).slice(0, 8).join(', ') + (list.length > 8 ? ' …' : '');
+  if(!confirm('Delete '+list.length+' closed job'+(list.length>1?'s':'')+' permanently?\n\n'+names+'\n\nThis removes the job'+(list.length>1?'s':'')+' and photos from '+(dashSourceGH||dashSourceOD||dashSourceFS ? backendLabel()+' and ' : '')+'this device. It can’t be undone.')) return;
+  const be = dashSourceGH ? ghBackend : dashSourceFS ? fsBackend : dashSourceOD ? odBackend : null;
+  let done = 0, failed = 0;
+  for(const j of list){
+    $('delStatus').textContent = 'Deleting '+(done+failed+1)+' of '+list.length+'…';
+    try{
+      if(be){ await be.del('jobs/'+j.id+'.json'); for(const ph of j.photos||[]) await be.del('photos/'+ph); }
+      for(const ph of j.photos||[]) await idb.del('p:'+ph);
+      logs = logs.filter(l => l.id !== j.id); dashJobs = dashJobs.filter(x => x.id !== j.id); selected.delete(j.id);
+      done++;
+    }catch(e){ failed++; console.warn('delete', j.id, e); $('delStatus').textContent = 'Couldn’t delete '+j.asset+': '+e.message; }
+  }
+  saveLogs(); try{ renderPending(); }catch{}
+  if(!failed) $('delStatus').textContent = '';
+  toast('Deleted '+done+' job'+(done!==1?'s':'')+(failed ? ', '+failed+' failed' : ''));
+  renderDash();
+}
+$('selAll').onchange = () => { const ids = dashJobs.filter(j=>j.status==='completed').map(j=>j.id); selected.clear(); if($('selAll').checked) ids.forEach(id => selected.add(id)); renderDash(); };
+$('delSel').onclick = () => deleteJobs(dashJobs.filter(j => selected.has(j.id) && j.status==='completed'));
+$('delAll').onclick = () => deleteJobs(dashJobs.filter(j => j.status==='completed'));
 document.querySelectorAll('.seg [data-view]').forEach(b => b.onclick = () => { dashView = b.dataset.view; try{ localStorage.setItem('rl_dashView', dashView); }catch{} renderDash(); });
 try{ const v = localStorage.getItem('rl_dashView'); if(['open','eam','ready','completed'].includes(v)) dashView = v; }catch{}
 $('dashSearch').addEventListener('input', renderDash);
