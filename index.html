@@ -133,6 +133,7 @@ td.act .actbtns .btn{width:100%;padding:5px 4px;font-size:12px;white-space:norma
 td .pthumbs{display:flex;gap:4px;flex-wrap:wrap}
 td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
 .empty{padding:24px;text-align:center;color:var(--muted)}
+#tagChips.need{outline:3px solid #dc2626;outline-offset:4px;border-radius:10px}
 </style>
 </head>
 <body>
@@ -173,6 +174,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
         <input id="asset" autocomplete="off" autocapitalize="characters" placeholder="Scan or type asset code">
         <button class="btn primary scan-btn" id="scanBtn" data-target="asset" type="button">📷 Scan</button>
       </div>
+      <div id="scanBox">
       <div class="hint" id="scanLabel"></div>
       <div id="scanner"></div>
       <div class="row hidden" id="scanTools" style="margin-top:8px;align-items:center">
@@ -184,6 +186,8 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
       <div id="scanReader" class="hidden"></div>
       <input id="scanPhoto" type="file" accept="image/*" capture="environment" class="hidden">
       <div class="status hidden" id="scanMsg"></div>
+      </div>
+      <div id="scanHome"></div>
     </div>
     <div class="field">
       <label for="fault">Fault</label>
@@ -194,6 +198,8 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
       <textarea id="resolution" placeholder="What was done"></textarea>
       <div class="chips" id="tagChips"></div>
       <div class="hint">Tap a tag to add or remove it. Tags stay together on the top line; type your notes on the line below.</div>
+      <div class="row" style="margin-top:8px"><button class="btn primary scan-btn" id="testEqBtn" data-target="test" data-label="🧪 Test Equipment" type="button">🧪 Test Equipment</button></div>
+      <div id="scanTestHome"></div>
     </div>
     <div class="field">
       <label for="end">End time</label>
@@ -559,8 +565,8 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 <script type="text/plain" id="lockedScript"></script>
 <script>
 (async () => {
-const APP_VERSION = '2.26.3';
-const FILL_LATEST = '4.6.3'; // the Fill AGL / Fill EAM script this app expects
+const APP_VERSION = '2.28.0';
+const FILL_LATEST = '4.7.0'; // the Fill AGL / Fill EAM script this app expects
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -568,7 +574,7 @@ const store = {
 };
 
 const DEFAULT_SETTINGS = {
-  tags: ['#BIO','#RTO','#NFF'],
+  tags: ['#BIO','#RTO','#NFF','#VEN'],
   defaultRoom: 'B-L10539',
   duration: 60,
   mode: 'share',
@@ -597,6 +603,7 @@ const DEFAULT_SETTINGS = {
   history.replaceState(null,'',location.pathname+location.search);
 })();
 let settings = Object.assign({}, DEFAULT_SETTINGS, store.get('settings', {}));
+if(!settings.venAdded){ if(!settings.tags.some(t => t.toUpperCase()==='#VEN')) settings.tags.push('#VEN'); settings.venAdded = true; store.set('settings', settings); }
 if(!settings.wfV2){ settings.agAutoComplete = false; settings.wfV2 = true; store.set('settings', settings); } // now: AGL done → EAM done → Completed
 if(settings.agAsset==='MES Asset Tag Number, Reported Equipment') settings.agAsset = DEFAULT_SETTINGS.agAsset;
 if(['Response Date/Time','Please enter your request details here, Response Date/Time'].includes(settings.agStart)) settings.agStart = DEFAULT_SETTINGS.agStart;
@@ -727,6 +734,12 @@ function toggleTag(tag){
   r.value = tags.length ? tags.join(' ')+'\n'+body : body;
   saveDraft(); renderTagChips();
 }
+// At least one of the tags from #BIO to #VEN (in your tag order) must be selected before saving
+function requiredTags(){
+  const T = settings.tags.map(t => t.toUpperCase()), b = T.indexOf('#BIO'), v = T.indexOf('#VEN');
+  if(b >= 0 && v >= b) return settings.tags.slice(b, v+1);
+  return settings.tags.filter(t => ['#BIO','#RTO','#NFF','#VEN'].includes(t.toUpperCase()));
+}
 function renderTagChips(){
   const c = $('tagChips'); c.innerHTML='';
   settings.tags.forEach(t => {
@@ -781,9 +794,10 @@ function scanMsg(text, linkText, onLink){
   if(linkText){ const a=document.createElement('a'); a.href='#'; a.textContent=linkText; a.onclick=e=>{e.preventDefault(); onLink();}; m.append(a); }
 }
 let scanTarget = 'asset';
-const scanNames = {asset:'Asset ID', room:'Room Number'};
+const scanNames = {asset:'Asset ID', room:'Room Number', test:'Test Equipment'};
 function gotCode(text){
   text = text.trim();
+  if(scanTarget==='test'){ addTestEquipment(text); stopScan(); return; }
   // Labels at your site: rooms are B-L…, assets MES-… — put a code in the right box whichever Scan was pressed
   const looksRoom = /^[A-Z]-L\d{3,}$/i.test(text), looksAsset = /^MES-\d+$/i.test(text);
   if(scanTarget==='asset' && looksRoom){ scanTarget = 'room'; toast('That was a room label: put in Room Number'); }
@@ -847,7 +861,7 @@ async function stopScan(){
   track = null; video = null; $('scanner').innerHTML = '';
   $('scanner').classList.remove('on'); $('scanLabel').textContent='';
   ['scanTools','zoomRange','zoomLabel','torchBtn'].forEach(id => $(id).classList.add('hidden'));
-  document.querySelectorAll('.scan-btn').forEach(b => b.textContent='📷 Scan');
+  document.querySelectorAll('.scan-btn').forEach(b => b.textContent = b.dataset.label || '📷 Scan');
 }
 // Fallback / small or shiny labels: a still photo from the iPhone camera, tried at several angles
 function photoScan(){ $('scanPhoto').click(); }
@@ -871,7 +885,19 @@ $('scanPhoto').addEventListener('change', async e => {
     else scanMsg('No barcode found in that photo. Get a bit closer, keep it sharp and well lit.', 'Try again', photoScan);
   }catch(err){ scanMsg(err?.message||String(err), 'Try again', photoScan); }
 });
+// Test Equipment: adds "Test Equipment: <code>" as a line in Resolution (tags stay on the top line)
+function addTestEquipment(code){
+  const r = $('resolution'), line = 'Test Equipment: '+code;
+  if(r.value.split('\n').some(l => l.trim().toUpperCase()===line.toUpperCase())){ toast(code+' is already in Resolution'); return; }
+  r.value = r.value.replace(/\s+$/,'') + (r.value.trim() ? '\n' : '') + line;
+  saveDraft(); renderTagChips();
+  if(navigator.vibrate) navigator.vibrate(80);
+  toast(line);
+}
 async function startScan(target){
+  // show the camera under the button that was pressed
+  const box = $('scanBox'), home = $(target==='test' ? 'scanTestHome' : 'scanHome');
+  if(box && home && box.nextElementSibling !== home) home.parentNode.insertBefore(box, home);
   const wasTarget = scanTarget;
   if(scanning){ await stopScan(); if(wasTarget===target) return; }
   scanTarget = target;
@@ -1275,6 +1301,13 @@ function newId(asset){
 $('saveBtn').onclick = async () => {
   const asset = $('asset').value.trim();
   if(!asset){ toast('Asset ID is required'); $('asset').focus(); return; }
+  const need = requiredTags();
+  if(need.length && !need.some(resolutionHas)){
+    const c = $('tagChips'); c.scrollIntoView({behavior:'smooth', block:'center'});
+    c.classList.add('need'); setTimeout(() => c.classList.remove('need'), 2500);
+    alert('Please select a tag before saving: '+need.join(', ')+'.\n\nTap one of the tags under Resolution.');
+    return;
+  }
   if(!timesManual) setEndNow(); // end = the moment you press Save
   let eamChoice = $('eamFlag').checked;
   if(settings.askEam !== false){ eamChoice = await askEam(); if(eamChoice === null) return; $('eamFlag').checked = eamChoice; settings.eamLast = eamChoice; saveSettings(); }
@@ -1673,6 +1706,16 @@ async function eamHello(e){
 let pendingSn = null;
 const isSnOrigin = o => { try{ const h = new URL(o).hostname; return /(^|\.)service-now\.com$|(^|\.)servicenowservices\.com$/i.test(h) || (snHost() && h===snHost()); }catch{ return false; } };
 // ---------- Auto log / Run AGL: Repair Logger drives the Agility tab it opened ----------
+// Timers kept by a small worker: Edge slows normal timers when Repair Logger is minimised or behind other tabs
+const bgTimeout = (() => {
+  let w = null, n = 0; const jobs = new Map();
+  const run = id => { const f = jobs.get(id); if(!f) return; jobs.delete(id); clearTimeout(f.b); f.fn(); };
+  try{
+    w = new Worker(URL.createObjectURL(new Blob(['onmessage=function(e){setTimeout(function(){postMessage(e.data.id);},e.data.ms);};'], {type:'text/javascript'})));
+    w.onmessage = e => run(e.data); w.onerror = () => { w = null; };
+  }catch{ w = null; }
+  return (fn, ms) => { const id = ++n; jobs.set(id, {fn, b: setTimeout(() => run(id), w ? ms + 1500 : ms)}); if(w) try{ w.postMessage({id, ms}); }catch{} };
+})();
 const autoLimit = () => Math.max(1, parseInt(settings.agAutoLimit) || 20);
 let autoSent = 0;
 let aglWin = null, autoMode = 'off', autoCurrent = null, autoStarted = 0, runIds = null, autoDone = 0, autoStopped = 0, autoPoll = null;
@@ -1741,7 +1784,7 @@ async function autoStart(mode){
   }, (autoMode==='auto' ? (parseFloat(settings.agAutoEvery)||3) : 1) * 60000);
   autoStatus(first ? 'Logging '+first.asset+' in Agility…'+(mode==='run' ? ' (1 of '+runIds.length+')' : '') : (mode==='run' ? 'Starting…' : 'Auto log on · waiting for new jobs.'+skippedNote()));
   renderAutoBtns();
-  setTimeout(autoWake, 2500);
+  bgTimeout(autoWake, 2500);
   aglAnswered = false;
   setTimeout(() => {
     if(autoMode!=='off' && !aglAnswered && (!aglWin || !aglWin.closed))
@@ -1778,12 +1821,12 @@ window.addEventListener('message', async e => {
   if(d.rl==='agl-wo'){
     const j = await applyAglWo(d, false);
     if(autoCurrent && (autoCurrent.id===d.id || autoCurrent.asset===d.asset)){ autoCurrent = null; autoDone++; autoStatus((d.asset||'')+': AGL WO# '+d.wo+' saved. '+(autoQueue().length ? 'Next job…' : '')); }
-    renderAutoBtns(); setTimeout(autoWake, 3000);
+    renderAutoBtns(); bgTimeout(autoWake, 3000);
   }
   if(d.rl==='agl-stopped'){
     toast('Auto AGL stopped for '+(d.asset||'a job')+': '+(d.reason||'')+'. Left for you to check.');
     if(autoCurrent && (autoCurrent.id===d.id || autoCurrent.asset===d.asset)){ autoCurrent = null; autoStopped++; }
-    renderAutoBtns(); setTimeout(autoWake, 3000);
+    renderAutoBtns(); bgTimeout(autoWake, 3000);
   }
 });
 window.addEventListener('message', e => {
@@ -1791,7 +1834,7 @@ window.addEventListener('message', e => {
   if(e.data.rl==='hello' && (!e.data.v || e.data.v < FILL_LATEST)) toast('Your ⚡ Fill EAM bookmark is out of date. Settings › Fill EAM › Make the bookmark, then replace it.');
   if(e.data.rl==='hello' && eamAuto && e.data.worker && e.source && (!snWin || e.source===snWin)){ eamHello(e); return; }
   if(e.data.rl==='hello' && pendingSn && e.source) e.source.postMessage({rl:'job', text:pendingSn}, e.origin);
-  if(e.data.rl==='eam-stopped'){ toast('Auto EAM skipped '+(e.data.asset||'a job')+': '+(e.data.reason||'')); if(eamCurrent && (eamCurrent.id===e.data.id || eamCurrent.asset===e.data.asset)) eamCurrent = null; setTimeout(eamWake, 3000); }
+  if(e.data.rl==='eam-stopped'){ toast('Auto EAM skipped '+(e.data.asset||'a job')+': '+(e.data.reason||'')); if(eamCurrent && (eamCurrent.id===e.data.id || eamCurrent.asset===e.data.asset)) eamCurrent = null; bgTimeout(eamWake, 3000); }
   if(e.data.rl==='eam'){ applyEam(e.data); if(eamCurrent && (eamCurrent.id===e.data.id || eamCurrent.asset===e.data.asset)){ eamCurrent = null; eamStatus((e.data.asset||'')+' → '+(e.data.wo||'')+' created. '+(eamQueue().length ? 'Next…' : '')); } }
 });
 let woChecking = false;
