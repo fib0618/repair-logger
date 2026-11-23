@@ -608,7 +608,7 @@ tr.sel td{background:rgba(220,38,38,.08)}
 <script type="text/plain" id="lockedScript"></script>
 <script>
 (async () => {
-const APP_VERSION = '2.31.0';
+const APP_VERSION = '2.31.1';
 const FILL_LATEST = '4.7.1'; // the Fill AGL / Fill EAM script this app expects
 const $ = id => document.getElementById(id);
 const store = {
@@ -1634,6 +1634,7 @@ $('saveBtn').onclick = async () => {
     }
   } finally { $('saveBtn').disabled=false; }
   ['room','asset','fault','resolution'].forEach(f=>$(f).value='');
+  showAssetInfo(); renderSuggest(); $('serialBox').classList.add('hidden'); $('serialIn').value=''; $('serialResults').innerHTML='';
   draftPhotos.forEach(p=>URL.revokeObjectURL(p.url)); draftPhotos=[]; renderThumbs();
   setTimesManual(false); setEndNow(); renderTagChips();
 };
@@ -1663,6 +1664,7 @@ $('clearBtn').onclick = () => {
   if(hasData && !confirm('Clear the form? Nothing is saved.')) return;
   stopScan();
   ['room','asset','fault','resolution'].forEach(f=>$(f).value='');
+  showAssetInfo(); renderSuggest(); $('serialBox').classList.add('hidden'); $('serialIn').value=''; $('serialResults').innerHTML='';
   draftPhotos.forEach(p=>URL.revokeObjectURL(p.url)); draftPhotos=[]; renderThumbs();
   $('saveStatus').textContent=''; scanMsg(''); setTimesManual(false); setEndNow(); renderTagChips();
   toast('Form cleared');
