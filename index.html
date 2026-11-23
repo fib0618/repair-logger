@@ -452,6 +452,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
     <label class="radio" style="margin:0 0 6px"><input type="checkbox" id="agAutoSubmit">
       <span><b>Press Agility’s Complete button for me after a countdown</b><br><span class="hint">After filling, the panel counts down and then presses Complete. Cancel (or Esc) stops it. It never presses Complete if something needs checking.</span></span></label>
     <div class="field" style="margin:0 0 12px 28px"><label for="agSubmitSecs" style="font-weight:400">Countdown (seconds)</label><input id="agSubmitSecs" type="number" min="3" max="60" placeholder="10" style="max-width:100px"></div>
+    <div class="field" style="margin:0 0 12px 28px"><label for="agMaxHours" style="font-weight:400">Only auto-press Complete when the job (start → end) is at most this many hours long; longer jobs wait for you to press Complete</label><input id="agMaxHours" type="number" min="0.5" max="24" step="0.5" placeholder="4" style="max-width:100px"></div>
     <label class="radio" style="margin:0 0 14px"><input type="checkbox" id="agHelper">
       <span><b>Open the copy helper window when I press → AGL</b><br><span class="hint">Turn off if you use the ⚡ Fill AGL button and don’t need the copy-paste window. → AGL still copies the job.</span></span></label>
     <div class="field">
@@ -558,8 +559,8 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 <script type="text/plain" id="lockedScript"></script>
 <script>
 (async () => {
-const APP_VERSION = '2.26.2';
-const FILL_LATEST = '4.6.2'; // the Fill AGL / Fill EAM script this app expects
+const APP_VERSION = '2.26.3';
+const FILL_LATEST = '4.6.3'; // the Fill AGL / Fill EAM script this app expects
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -577,7 +578,7 @@ const DEFAULT_SETTINGS = {
   ghOwner: '', ghRepo: 'repair-logs', ghBranch: 'main', ghFolder: '',
   appRepo: 'repair-logger', appBranch: 'main', appPath: 'index.html',
   agAsset: 'Equipment, Reported Equipment', agAssetTag: 'MES Asset Tag Number, #598710, >Additional Comments', agResponse: 'Response Date/Time', agResponseMins: '5', agReqMinus: '5', agFault: 'Additional Comments', agResolution: 'Comments',
-  agStart: 'Please enter your request details here', agEnd: 'Completion Date', agDecouple: 'Decouple Asset?', agRoom: 'Room Number', agRoomUncheck: 'Use my default room for this request', agRoomPrefix: '%', askEam: true, agHelper: true, agAutoComplete: false, agAutoSubmit: true, agSubmitSecs: '10',
+  agStart: 'Please enter your request details here', agEnd: 'Completion Date', agDecouple: 'Decouple Asset?', agRoom: 'Room Number', agRoomUncheck: 'Use my default room for this request', agRoomPrefix: '%', askEam: true, agHelper: true, agAutoComplete: false, agAutoSubmit: true, agSubmitSecs: '10', agMaxHours: '4',
   agAutoLimit: '20', agAutoUrl: 'https://agility/Agility/MainMenuDashboard.aspx#', agAddLabel: 'Add Completed Self-Service Request', agAutoEvery: '3',
   snNewUrl: '', snAssignee: 'Keith Nissanka', snAsset: 'Asset', snAssigned: 'Assigned To', snSummary: 'Order Summary', snInfo: 'Additional Information, Order Description', snAglRef: 'Agility Reference', snWait: '2', snTable: 'x_nuvo_eam_clinical_work_orders', snKeepValues: 'Work Order Type=Corrective Maintenance\nInitiation Reason=Equipment Fault', agWaitRoom: '2', agWaitDecouple: '2', agWaitEquipment: '3', agWaitDropdown: '2', agWaitMes: '5', agWaitFields: '8',
   agTriage: 'Medical Equipment Repair - Portable Equipment\nGeneral equipment\nDevice CAN still be used\nCleaning IS NOT required prior to repair\nNO immediate health and safety risk to patients or property', agDelay: '2',
@@ -1861,7 +1862,7 @@ function agilityPayload(j){
   add('agResponse', fmtAgl(j.start), j.start ? j.start.replace(' ','T') : null); // Response Date/Time: start
   add('agEnd', fmtAgl(j.end), j.end ? j.end.replace(' ','T') : null);            // Completion Date: end
   add('agResolution', j.resolution);
-  return 'REPAIRLOGGER:'+JSON.stringify({v:1, id:j.id, asset:j.asset, decouple:(settings.agDecouple||'').trim(), uncheck:(settings.agRoomUncheck||'').trim(), triage:(settings.agTriage||'').split('\n').map(x=>x.trim()).filter(Boolean), delay:Math.round((parseFloat(settings.agDelay)||2)*1000), waits:aglWaits(), submit: settings.agAutoSubmit !== false ? {secs: parseFloat(settings.agSubmitSecs) || 10, label: 'Complete'} : null, fields});
+  return 'REPAIRLOGGER:'+JSON.stringify({v:1, id:j.id, asset:j.asset, decouple:(settings.agDecouple||'').trim(), uncheck:(settings.agRoomUncheck||'').trim(), triage:(settings.agTriage||'').split('\n').map(x=>x.trim()).filter(Boolean), delay:Math.round((parseFloat(settings.agDelay)||2)*1000), waits:aglWaits(), submit: settings.agAutoSubmit !== false ? {secs: parseFloat(settings.agSubmitSecs) || 10, maxHours: parseFloat(settings.agMaxHours) || 4, label: 'Complete'} : null, fields});
 }
 // AGL helper: a small window beside Agility with each value ready to copy, in form order.
 function aglItems(j){
@@ -2242,7 +2243,7 @@ function bindSettings(){
     r.checked = r.value===settings.mode;
     r.onchange = () => { settings.mode=r.value; saveSettings(); showModeSettings(); };
   });
-  ['defaultRoom','odFolder','odFile','odClient','odTenant','shareFile','ghOwner','ghRepo','ghBranch','ghFolder','appRepo','appBranch','appPath','agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom','agRoomUncheck','agRoomPrefix','agTriage','agAssetTag','agResponse','agReqMinus','agSubmitSecs','agAutoUrl','agAddLabel','agAutoEvery','agAutoLimit','agWaitRoom','agWaitDecouple','agWaitEquipment','agWaitDropdown','agWaitMes','agWaitFields','snNewUrl','snAssignee','snAsset','snAssigned','snSummary','snInfo','snAglRef','snWait','snTable','snKeepValues'].forEach(k=>{
+  ['defaultRoom','odFolder','odFile','odClient','odTenant','shareFile','ghOwner','ghRepo','ghBranch','ghFolder','appRepo','appBranch','appPath','agAsset','agFault','agResolution','agStart','agEnd','agDecouple','agRoom','agRoomUncheck','agRoomPrefix','agTriage','agAssetTag','agResponse','agReqMinus','agSubmitSecs','agMaxHours','agAutoUrl','agAddLabel','agAutoEvery','agAutoLimit','agWaitRoom','agWaitDecouple','agWaitEquipment','agWaitDropdown','agWaitMes','agWaitFields','snNewUrl','snAssignee','snAsset','snAssigned','snSummary','snInfo','snAglRef','snWait','snTable','snKeepValues'].forEach(k=>{
     $(k).value = settings[k]||'';
     $(k).addEventListener('change', ()=>{ settings[k]=$(k).value.trim(); saveSettings(); renderSaveLoc(); });
   });
