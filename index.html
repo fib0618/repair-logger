@@ -565,8 +565,8 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 <script type="text/plain" id="lockedScript"></script>
 <script>
 (async () => {
-const APP_VERSION = '2.28.0';
-const FILL_LATEST = '4.7.0'; // the Fill AGL / Fill EAM script this app expects
+const APP_VERSION = '2.28.1';
+const FILL_LATEST = '4.7.1'; // the Fill AGL / Fill EAM script this app expects
 const $ = id => document.getElementById(id);
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('rl_'+k); return v==null ? d : JSON.parse(v); }catch{ return d; } },
@@ -1718,6 +1718,7 @@ const bgTimeout = (() => {
 })();
 const autoLimit = () => Math.max(1, parseInt(settings.agAutoLimit) || 20);
 let autoSent = 0;
+let autoPing = null;
 let aglWin = null, autoMode = 'off', autoCurrent = null, autoStarted = 0, runIds = null, autoDone = 0, autoStopped = 0, autoPoll = null;
 const aglOrigin = () => { try{ return new URL(settings.agAutoUrl || DEFAULT_SETTINGS.agAutoUrl).origin; }catch{ return 'https://agility'; } };
 const waitingJobs = () => dashJobs.filter(j => j.status!=='completed' && !j.aglWo && !j.agilityAt).sort((a,b) => String(a.id).localeCompare(String(b.id)));
@@ -1767,7 +1768,7 @@ async function autoStart(mode){
   const ids = waitingJobs().map(j => j.id);
   if(mode==='run' && !ids.length){ renderAutoBtns(); autoStatus('No jobs are waiting for Agility.'+skippedNote()); return; } // nothing to do: don't open Agility
   const first = mode==='run' ? waitingJobs().find(j => ids.includes(j.id)) : waitingJobs()[0];
-  const jobMsg = j => ({text:agilityPayload(j), id:j.id+(j.aglResend ? '~resend'+j.aglResend : ''), asset:j.asset, url:settings.agAutoUrl || DEFAULT_SETTINGS.agAutoUrl, add:settings.agAddLabel || DEFAULT_SETTINGS.agAddLabel});
+  const jobMsg = j => ({text:agilityPayload(j), id:j.id+(j.aglResend ? '~resend'+j.aglResend : ''), asset:j.asset, from:location.origin, url:settings.agAutoUrl || DEFAULT_SETTINGS.agAutoUrl, add:settings.agAddLabel || DEFAULT_SETTINGS.agAddLabel});
   const base = (settings.agAutoUrl || DEFAULT_SETTINGS.agAutoUrl).replace(/#.*$/,'');
   const url = first ? base+'#rljob='+encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(jobMsg(first)))))) : (settings.agAutoUrl || DEFAULT_SETTINGS.agAutoUrl);
   aglWin = window.open(url, 'rl-agility');
@@ -1775,6 +1776,9 @@ async function autoStart(mode){
   autoMode = mode; autoCurrent = null; autoDone = 0; autoStopped = 0; autoSent = 0;
   runIds = mode==='run' ? ids : null;
   if(first){ autoCurrent = first; autoStarted = Date.now(); autoSent = 1; await updateJob(first, {agilityAt: localInput(new Date()).replace('T',' ')}); renderDash(); }
+  clearInterval(autoPing);
+  // check in with the Agility tab so it can always answer (WO#s, progress), even if it lost its link back here
+  autoPing = setInterval(() => { if(autoMode==='off'){ clearInterval(autoPing); return; } try{ if(aglWin && !aglWin.closed) aglWin.postMessage({rl:'agl-ping'}, aglOrigin()); }catch{} }, 15000);
   clearInterval(autoPoll);
   autoPoll = setInterval(async () => {
     if(autoMode==='off') return;
@@ -1815,7 +1819,7 @@ window.addEventListener('message', async e => {
       if(!ok){ autoCurrent = null; autoStop('couldn’t save that '+j.asset+' was sent, so it wasn’t sent (no duplicates)'); return; }
       autoSent++;
     }
-    e.source.postMessage({rl:'agl-job', text:agilityPayload(autoCurrent), id:autoCurrent.id+(autoCurrent.aglResend ? '~resend'+autoCurrent.aglResend : ''), asset:autoCurrent.asset, url:settings.agAutoUrl || DEFAULT_SETTINGS.agAutoUrl, add:settings.agAddLabel || DEFAULT_SETTINGS.agAddLabel}, e.origin);
+    e.source.postMessage({rl:'agl-job', text:agilityPayload(autoCurrent), id:autoCurrent.id+(autoCurrent.aglResend ? '~resend'+autoCurrent.aglResend : ''), asset:autoCurrent.asset, from:location.origin, url:settings.agAutoUrl || DEFAULT_SETTINGS.agAutoUrl, add:settings.agAddLabel || DEFAULT_SETTINGS.agAddLabel}, e.origin);
     autoStatus('Logging '+autoCurrent.asset+' in Agility…'+(autoMode==='run' ? ' ('+(autoDone+autoStopped+1)+' of '+runIds.length+')' : ''));
   }
   if(d.rl==='agl-wo'){
