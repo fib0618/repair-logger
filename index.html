@@ -134,6 +134,13 @@ td .pthumbs{display:flex;gap:4px;flex-wrap:wrap}
 td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
 .empty{padding:24px;text-align:center;color:var(--muted)}
 #tagChips.need{outline:3px solid #dc2626;outline-offset:4px;border-radius:10px}
+.suggest{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.suggest:empty{display:none}
+.suggest .sh{width:100%;font-size:12px;color:var(--muted)}
+.suggest .sg{display:inline-flex;align-items:center;max-width:100%;border:1px solid var(--line,#d0d7de);border-radius:14px;background:var(--card,#fff);color:inherit;font:inherit;font-size:13px;padding:0}
+.suggest .sg>span{padding:5px 4px 5px 10px;cursor:pointer;text-align:left;overflow:hidden;text-overflow:ellipsis}
+.suggest .sg>span small{color:var(--muted);margin-left:4px}
+.suggest .sg>b{padding:5px 9px 5px 5px;cursor:pointer;color:var(--muted);font-weight:400}
+.mdl{font-size:11px;color:var(--muted);margin-top:2px}
 </style>
 </head>
 <body>
@@ -141,6 +148,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
   <h1>👨‍🔧 Repair Logger</h1>
   <div class="hdr-right">
     <span id="pendingBadge" class="badge pending hidden"></span>
+    <span id="verBadge" title="App version" style="font-size:12px;color:var(--muted);white-space:nowrap"></span>
     <button class="gear" id="gearBtn" type="button" aria-label="Settings" title="Settings">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
@@ -174,6 +182,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
         <input id="asset" autocomplete="off" autocapitalize="characters" placeholder="Scan or type asset code">
         <button class="btn primary scan-btn" id="scanBtn" data-target="asset" type="button">📷 Scan</button>
       </div>
+      <div class="hint" id="assetInfo"></div>
       <div id="scanBox">
       <div class="hint" id="scanLabel"></div>
       <div id="scanner"></div>
@@ -192,11 +201,13 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
     <div class="field">
       <label for="fault">Fault</label>
       <textarea id="fault" placeholder="Describe the fault"></textarea>
+      <div class="suggest" id="faultSuggest"></div>
     </div>
     <div class="field">
       <label for="resolution">Resolution</label>
       <textarea id="resolution" placeholder="What was done"></textarea>
       <div class="chips" id="tagChips"></div>
+      <div class="suggest" id="resSuggest"></div>
       <div class="hint">Tap a tag to add or remove it. Tags stay together on the top line; type your notes on the line below.</div>
       <div class="row" style="margin-top:8px"><button class="btn primary scan-btn" id="testEqBtn" data-target="test" data-label="🧪 Test Equipment" type="button">🧪 Test Equipment</button></div>
       <div id="scanTestHome"></div>
@@ -422,6 +433,17 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
   </div>
 
   <div class="card">
+    <h2>📋 Asset list (models)</h2>
+    <div class="hint" style="margin:0 0 8px">Upload your asset database (CSV with Equipment ID, Serial, Vendor, Department, Model, Description). It is stored <b>encrypted</b> in your private GitHub repository, so every device can use it. When you type or scan an Asset ID the model shows under it, and the sentences you often write for that model are offered under Fault and Resolution.</div>
+    <div class="row">
+      <button class="btn primary" id="assetUpBtn" type="button">⬆ Upload asset list (CSV)…</button>
+      <button class="btn" id="assetRefreshBtn" type="button">↻ Get latest from GitHub</button>
+    </div>
+    <input type="file" id="assetFile" accept=".csv,text/csv" class="hidden">
+    <div class="status" id="assetStatus"></div>
+    <label class="radio" style="margin:10px 0 0"><input type="checkbox" id="phraseOn"><span><b>Suggest my common sentences under Fault and Resolution</b><br><span class="hint">Learned from your saved jobs for the same model (then from all jobs). Tap one to add it; tap × to stop suggesting it.</span></span></label>
+  </div>
+  <div class="card">
     <h2>Update app</h2>
     <div style="margin-bottom:10px">Version on this device: <b id="appVersion"></b></div>
     <div class="field">
@@ -565,7 +587,7 @@ td .pthumbs img{width:44px;height:44px;object-fit:cover;border-radius:6px;border
 <script type="text/plain" id="lockedScript"></script>
 <script>
 (async () => {
-const APP_VERSION = '2.28.1';
+const APP_VERSION = '2.29.0';
 const FILL_LATEST = '4.7.1'; // the Fill AGL / Fill EAM script this app expects
 const $ = id => document.getElementById(id);
 const store = {
@@ -709,6 +731,179 @@ function saveDraft(){ store.set('draft', Object.assign(Object.fromEntries(fields
 function loadDraft(){ const d=store.get('draft',null); fields.forEach(f=>$(f).value = d?.[f] || ''); if(d && d.timesManual && $('end').value) setTimesManual(true); else setEndNow(); }
 fields.forEach(f => $(f).addEventListener('input', () => { saveDraft(); if(f==='resolution') renderTagChips(); }));
 
+// ---------- Asset list (models) ----------
+// Stored encrypted on GitHub (gzip, then AES-GCM with this device's key) under a hashed file name, and cached
+// encrypted on this device. Only ever decrypted in memory.
+let assetDb = null; // Map: ID -> {serial, vendor, dept, model, desc}
+const ASSET_IDB = 'enc:assetdb';
+function parseCsv(text){
+  const rows = []; let row = [], f = '', q = false;
+  for(let i=0; i<text.length; i++){
+    const c = text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){ f+='"'; i++; } else q = false; } else f += c; }
+    else if(c==='"') q = true;
+    else if(c===','){ row.push(f); f=''; }
+    else if(c==='\n' || c==='\r'){ if(c==='\r' && text[i+1]==='\n') i++; row.push(f); f=''; if(row.some(x=>x.trim())) rows.push(row); row=[]; }
+    else f += c;
+  }
+  row.push(f); if(row.some(x=>x.trim())) rows.push(row);
+  return rows;
+}
+function assetRowsFromCsv(text){
+  const rows = parseCsv(text); if(rows.length < 2) throw new Error('That file has no rows');
+  const h = rows[0].map(x => x.toLowerCase().replace(/\s+/g,' ').trim());
+  const col = (re, def) => { const i = h.findIndex(x => re.test(x)); return i >= 0 ? i : def; };
+  const c = {id: col(/equipment id|asset|^id/, 0), serial: col(/serial/, 1), vendor: col(/vendor|manufacturer|make/, 2), dept: col(/department|dept/, 3), model: col(/model/, 4), desc: col(/description/, 5)};
+  const out = [];
+  for(const r of rows.slice(1)){
+    const id = (r[c.id]||'').trim().toUpperCase(); if(!id) continue;
+    out.push([id, ...['serial','vendor','dept','model','desc'].map(k => (r[c[k]]||'').trim())]);
+  }
+  if(!out.length) throw new Error('No assets found in that file');
+  return out;
+}
+async function gz(bytes, back){
+  if(typeof CompressionStream === 'undefined') return null;
+  const st = new Blob([bytes]).stream().pipeThrough(back ? new DecompressionStream('gzip') : new CompressionStream('gzip'));
+  return new Uint8Array(await new Response(st).arrayBuffer());
+}
+// file content: "RLA1" + 1 byte (1 = gzip) + JSON rows, all encrypted
+async function packAssets(rows){
+  const json = te.encode(JSON.stringify({v:1, at:new Date().toISOString(), rows}));
+  const z = await gz(json).catch(()=>null);
+  const body = z || json, out = new Uint8Array(5 + body.length);
+  out.set(te.encode('RLA1')); out[4] = z ? 1 : 0; out.set(body, 5);
+  return encryptBytes(out);
+}
+async function unpackAssets(enc){
+  const u = await decryptBytes(enc);
+  if(td.decode(u.slice(0,4)) !== 'RLA1') throw new Error('Not an asset list');
+  const body = u.slice(5), json = u[4]===1 ? await gz(body, true) : body;
+  return JSON.parse(td.decode(json));
+}
+function useAssets(data){
+  assetDb = new Map(data.rows.map(r => [r[0], {serial:r[1], vendor:r[2], dept:r[3], model:r[4], desc:r[5]}]));
+  assetDb.at = data.at;
+  showAssetInfo(); renderSuggest();
+  try{ if(currentTab==='dash') renderDash(); }catch{}
+}
+const assetPath = async () => ghPrefix() + await opaqueName('data/asset-list');
+function assetStatus(t, cls){ const el = $('assetStatus'); if(el){ el.textContent = t; el.className = 'status'+(cls ? ' '+cls : ''); } }
+async function loadAssets(checkGitHub){
+  if(!cryptoKeys) return;
+  if(!assetDb){ const enc = await idb.get(ASSET_IDB); if(enc) try{ useAssets(await unpackAssets(enc)); }catch(e){ console.warn('asset cache', e); } }
+  if(!checkGitHub || !ghConfigured() || !navigator.onLine) return;
+  try{
+    const path = await assetPath();
+    const m = await ghGetMeta(settings.ghRepo, ghBranch(), path);
+    if(!m){ if(!assetDb) assetStatus('No asset list uploaded yet.'); return; }
+    if(m.sha === store.get('assetSha', '') && assetDb){ assetStatus('✓ '+assetDb.size.toLocaleString()+' assets (encrypted), updated '+new Date(assetDb.at).toLocaleString()+'.', 'ok'); return; }
+    const enc = m.content ? b64d(m.content.replace(/\s/g,'')) : await ghBlob(settings.ghRepo, m.sha);
+    useAssets(await unpackAssets(enc));
+    await idb.put(ASSET_IDB, enc); store.set('assetSha', m.sha);
+    assetStatus('✓ '+assetDb.size.toLocaleString()+' assets (encrypted), updated '+new Date(assetDb.at).toLocaleString()+'.', 'ok');
+  }catch(e){ assetStatus('Couldn’t get the asset list: '+e.message, 'err'); }
+}
+async function uploadAssets(file){
+  if(!ghConfigured() || !cryptoKeys) return assetStatus('Set up GitHub and the encryption key first.', 'err');
+  try{
+    assetStatus('Reading…');
+    const buf = await file.arrayBuffer();
+    let text; try{ text = new TextDecoder('utf-8', {fatal:true}).decode(buf); }catch{ text = new TextDecoder('windows-1252').decode(buf); } // Excel saves CSV in Windows encoding
+    const rows = assetRowsFromCsv(text.replace(/^\uFEFF/,''));
+    assetStatus('Encrypting and uploading '+rows.length.toLocaleString()+' assets…');
+    const enc = await packAssets(rows);
+    await ensureRepoKey();
+    const r = await ghPut(settings.ghRepo, ghBranch(), await assetPath(), enc, 'Repair Logger: update data');
+    useAssets(await unpackAssets(enc)); await idb.put(ASSET_IDB, enc); store.set('assetSha', r?.content?.sha || '');
+    assetStatus('✓ '+rows.length.toLocaleString()+' assets stored encrypted in '+settings.ghOwner+'/'+settings.ghRepo+' ('+Math.round(enc.length/1024)+' KB).', 'ok');
+  }catch(e){ assetStatus('Upload failed: '+e.message, 'err'); }
+}
+const assetOf = id => assetDb ? assetDb.get(String(id||'').trim().toUpperCase()) || null : null;
+const modelOf = j => (j && (j.model || assetOf(j.asset)?.model)) || '';
+function showAssetInfo(){
+  const el = $('assetInfo'); if(!el) return;
+  const a = assetOf($('asset').value);
+  el.textContent = a ? '🏷 '+[a.model, a.vendor, a.desc, a.dept].filter(Boolean).join(' · ') : ($('asset').value.trim() && assetDb ? 'Not in the asset list' : '');
+}
+
+// ---------- Common sentences (learned from your saved jobs) ----------
+const phraseKey = t => t.toLowerCase().replace(/[.\s]+$/,'').replace(/\s+/g,' ').trim();
+function sentencesOf(text){
+  return String(text||'').split('\n').filter(l => !/^\s*(#[\w-]+\s*)+$/.test(l))
+    .flatMap(l => l.split(/(?<=[.!?])\s+(?=[A-Z0-9])/)).map(x => x.replace(/^[-•*\s]+/,'').trim()).filter(x => x.length >= 4 && x.length <= 200);
+}
+let phraseCache = null;
+function phraseIndex(){
+  const sig = dashJobs.length+'|'+logs.length+'|'+(logs[0]?.id||'')+'|'+(dashJobs[0]?.id||'')+'|'+(assetDb?.size||0);
+  if(phraseCache && phraseCache.sig === sig) return phraseCache;
+  const jobs = new Map(); [...dashJobs, ...logs].forEach(j => { if(j && j.id) jobs.set(j.id, j); });
+  const idx = {fault:{}, resolution:{}}; // field -> model ('' = any) -> key -> {text, n, last}
+  for(const j of jobs.values()){
+    const m = modelOf(j).toUpperCase();
+    for(const field of ['fault','resolution']){
+      for(const t of new Set(sentencesOf(j[field]))){
+        const k = phraseKey(t); if(!k) continue;
+        for(const mk of m ? [m, ''] : ['']){
+          const b = (idx[field][mk] ||= {}); const e = (b[k] ||= {text:t, n:0, last:''});
+          e.n++; if(String(j.id) > e.last){ e.last = String(j.id); e.text = t.replace(/\.$/,''); }
+        }
+      }
+    }
+  }
+  idx.sig = sig; return (phraseCache = idx);
+}
+function suggestionsFor(field, model, typed){
+  const idx = phraseIndex()[field], hidden = new Set(settings.hiddenPhrases || []);
+  const words = phraseKey(typed||'').split(' ').filter(Boolean);
+  const present = new Set(sentencesOf($(field).value).map(phraseKey));
+  const ok = (k, e) => !hidden.has(k) && !present.has(k) && words.every(w => k.includes(w)) && phraseKey(typed||'') !== k;
+  const out = [], seen = new Set();
+  const take = (bucket, min, tag) => Object.entries(bucket||{}).filter(([k,e]) => e.n >= min && ok(k,e)).sort((a,b) => b[1].n - a[1].n || (b[1].last > a[1].last ? 1 : -1))
+    .forEach(([k,e]) => { if(!seen.has(k) && out.length < 8){ seen.add(k); out.push({k, text:e.text, n:e.n, tag}); } });
+  if(model) take(idx[model.toUpperCase()], 1, 'model');
+  take(idx[''], words.length ? 1 : 2, 'all');
+  return out;
+}
+// the line being typed (the last line, or the line with the cursor)
+function currentLine(el){
+  const v = el.value, pos = document.activeElement===el ? el.selectionStart : v.length;
+  const a = v.lastIndexOf('\n', pos-1) + 1, b = v.indexOf('\n', pos); const end = b < 0 ? v.length : b;
+  const line = v.slice(a, end);
+  return /^\s*(#[\w-]+\s*)+$/.test(line) ? {a:end, end, text:''} : {a, end, text:line};
+}
+function insertPhrase(field, text){
+  const el = $(field), cur = currentLine(el);
+  if(cur.text.trim()){ el.value = el.value.slice(0, cur.a) + text + el.value.slice(cur.end); }
+  else { const v = el.value.replace(/\s+$/,''); el.value = v + (v ? '\n' : '') + text; }
+  el.value = el.value.replace(/\s+$/,'') + '\n';
+  saveDraft(); if(field==='resolution') renderTagChips(); renderSuggest();
+  el.focus(); el.setSelectionRange(el.value.length, el.value.length);
+}
+function renderSuggest(){
+  for(const [field, box] of [['fault','faultSuggest'],['resolution','resSuggest']]){
+    const c = $(box); if(!c) continue; c.innerHTML = '';
+    if(settings.phraseOn === false) continue;
+    const a = assetOf($('asset').value), model = a?.model || '';
+    const list = suggestionsFor(field, model, currentLine($(field)).text);
+    if(!list.length) continue;
+    const h = document.createElement('div'); h.className = 'sh';
+    h.textContent = list.some(x => x.tag==='model') ? 'Often used for '+model+':' : 'Often used:'; c.appendChild(h);
+    for(const p of list){
+      const b = document.createElement('div'); b.className = 'sg';
+      const t = document.createElement('span'); t.textContent = p.text; t.title = 'Used '+p.n+'×'+(p.tag==='model' ? ' for '+model : '');
+      const n = document.createElement('small'); n.textContent = p.n > 1 ? '×'+p.n : ''; t.appendChild(n);
+      t.onmousedown = e => e.preventDefault(); t.onclick = () => insertPhrase(field, p.text);
+      const x = document.createElement('b'); x.textContent = '×'; x.title = 'Stop suggesting this';
+      x.onmousedown = e => e.preventDefault();
+      x.onclick = () => { settings.hiddenPhrases = [...(settings.hiddenPhrases||[]), p.k].slice(-500); saveSettings(); renderSuggest(); };
+      b.append(t, x); c.appendChild(b);
+    }
+  }
+}
+['fault','resolution'].forEach(f => { $(f).addEventListener('input', renderSuggest); $(f).addEventListener('click', renderSuggest); $(f).addEventListener('keyup', e => { if(/Arrow|Home|End/.test(e.key)) renderSuggest(); }); });
+$('asset').addEventListener('input', () => { showAssetInfo(); renderSuggest(); });
+
 // ---------- Tags ----------
 const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 function resolutionHas(tag){ return new RegExp('(^|\\s)'+reEsc(tag)+'(?=\\s|$)','i').test($('resolution').value); }
@@ -803,7 +998,7 @@ function gotCode(text){
   if(scanTarget==='asset' && looksRoom){ scanTarget = 'room'; toast('That was a room label: put in Room Number'); }
   else if(scanTarget==='room' && looksAsset){ scanTarget = 'asset'; toast('That was an asset label: put in Asset ID'); }
   $(scanTarget).value = text;
-  if(scanTarget==='asset') setEndNow(); else saveDraft();
+  if(scanTarget==='asset'){ setEndNow(); showAssetInfo(); renderSuggest(); } else saveDraft();
   if(navigator.vibrate) navigator.vibrate(80);
   toast(scanNames[scanTarget]+': '+text.trim()); scanMsg('');
 }
@@ -1326,10 +1521,11 @@ $('saveBtn').onclick = async () => {
     start: $('start').value.replace('T',' '),
     end: $('end').value.replace('T',' '),
     durationMin: ($('start').value && $('end').value) ? Math.round((new Date($('end').value)-new Date($('start').value))/60000) : '',
+    model: assetOf(asset)?.model || '', vendor: assetOf(asset)?.vendor || '', description: assetOf(asset)?.desc || '',
     photos, status: 'open', completedAt: null, eam: eamChoice,
     synced: false
   };
-  logs.unshift(job); saveLogs();
+  logs.unshift(job); saveLogs(); phraseCache = null;
   const st=$('saveStatus'); st.style.color='var(--muted)';
   $('saveBtn').disabled = true;
   try{
@@ -1533,6 +1729,7 @@ function copyBtn(text){
   };
   return b;
 }
+function assetCell(j){ const td = cell(j.asset); const m = modelOf(j); if(m){ const d = document.createElement('div'); d.className = 'mdl'; d.textContent = m; td.appendChild(d); } return td; }
 function cell(text, wide, display){
   const td=document.createElement('td'); if(wide) td.className='wide';
   const d=document.createElement('div'); d.className='cell';
@@ -2230,7 +2427,7 @@ async function renderDash(){
   for(const j of rows){
     const tr=document.createElement('tr');
     if(j.eamAt) tr.classList.add('eam-done'); else if(j.aglWo) tr.classList.add('agl-done');
-    tr.append(cell(j.room||''), cell(j.asset), cell(j.fault,true), cell(j.resolution,true), cell((j.tags||[]).join(' ')),
+    tr.append(cell(j.room||''), assetCell(j), cell(j.fault,true), cell(j.resolution,true), cell((j.tags||[]).join(' ')),
       dcell(j.start), dcell(j.end), cell(j.durationMin));
     tr.append(await photoCell(j));
     const woTd = cell(j.aglWo||'');
@@ -2329,6 +2526,11 @@ function bindSettings(){
       st.textContent = '✓ Bookmark ready (version '+ver+'). Drag ⚡ Fill EAM to your bookmarks bar and delete any older ⚡ Fill EAM bookmark. In ServiceNow its panel title shows '+ver+'.'; st.style.color='var(--ok)';
     }catch(e){ st.textContent = 'Could not make it: '+e.message; st.style.color='var(--err)'; }
   };
+  $('assetUpBtn').onclick = () => $('assetFile').click();
+  $('assetFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value=''; if(f) uploadAssets(f); });
+  $('assetRefreshBtn').onclick = () => { store.set('assetSha', ''); loadAssets(true); };
+  $('phraseOn').checked = settings.phraseOn !== false;
+  $('phraseOn').addEventListener('change', () => { settings.phraseOn = $('phraseOn').checked; saveSettings(); renderSuggest(); });
   $('scriptFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value=''; if(f) uploadScript(f); });
   $('dlUserScriptBtn').onclick = async () => {
     if(!coreReady()) return;
@@ -2589,9 +2791,13 @@ function checkLost(){
   $('lostBanner').classList.toggle('hidden', !lost);
 }
 // ---------- Init ----------
+$('verBadge').textContent = 'v'+APP_VERSION;
 await loadKey();
 setTimeout(checkLost, 0);
 renderDurChips(); loadDraft(); renderTagChips(); renderTagEditor(); bindSettings(); renderPending();
+loadAssets(true).then(() => { phraseCache = null; renderSuggest(); });
+if(settings.mode==='github' && ghConfigured() && cryptoKeys && !dashJobs.length) loadDashboard().then(() => { phraseCache = null; renderSuggest(); showAssetInfo(); }).catch(()=>{});
+showAssetInfo(); renderSuggest();
 if(store.get('importedCfg', false)){ store.set('importedCfg', false); toast('Settings imported. Finish setup here (sign-in, token or key).'); showTab('settings'); }
 // Wide screens (PC) open on the dashboard
 else if(window.matchMedia('(min-width: 900px)').matches && !new URLSearchParams(location.search).has('code')) showTab('dash');
